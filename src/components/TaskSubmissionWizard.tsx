@@ -32,6 +32,7 @@ import VideoRenderingABI from "../contracts/VideoRenderTasks.json"
 import SimpleBackdrop from './SimpleBackdrop';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, db } from '../config/firebase.js';
+import {useFirebaseAuth} from "../hooks/useFirebaseAuth"
 
 interface TaskSubmissionWizardProps {
   open: boolean;
@@ -67,7 +68,7 @@ const pricingOptions = [
 
 export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWizardProps) {
   const [activeStep, setActiveStep] = useState(0);
-  const [formData, setFormData] = useState<FormData>({
+  const initialState = {
     taskName:"",
     fileName: '',
     file: {} as File,
@@ -78,12 +79,14 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
     renderingSoftware: 'blender',
     selectedPlan: 'medium',
     walletConnected: false,
-  });
+  }
+  const [formData, setFormData] = useState<FormData>(initialState);
   const [backdrop, setBackdrop] = useState({show: false, message: ""})
   //WEb3 stuff
   const { open: openWallet } = useAppKit();
   const { address, isConnected, } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider('eip155')
+  const {user} = useFirebaseAuth()
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -109,6 +112,11 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   const handleConnectWallet = () => {
     openWallet()
   };
+
+  const handleClose = () => {
+    setFormData(initialState)
+    onClose()
+  }
 
   const uploadFileToFirebase = async () => {
     return new Promise<string>((resolve, reject) => {
@@ -171,7 +179,38 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
       const VideoRenderingContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, VideoRenderingABI.abi, signer);
       const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 100000000);
       const tx = await task.wait()
-      console.log("Task created:", tx);
+      // Parse logs for TaskCreated
+      let taskId = null;
+
+      for (const log of tx.logs) {
+        try {
+          const parsed = VideoRenderingContract.interface.parseLog(log);
+          if (parsed?.name === "TaskCreated") {
+            taskId = parsed.args.taskId; // bigint in ethers v6
+            break;
+          }
+        } catch (e) {
+          // not this contract / not this event
+          console.error(e)
+        }
+      }
+
+      setBackdrop({show: true, message: `Saving task...`})
+      db.collection("users").doc(user.uid).
+      collection("videoRenderingTasks").doc(taskId.toString()).set({
+        taskId: taskId.toString(),
+        taskName: formData.taskName,
+        fileName: formData.fileName,
+        fileUrl: downloadUrl,
+        frameFrom: parseInt(formData.frameFrom),
+        frameTo: parseInt(formData.frameTo),
+        os: formData.os,
+        renderingSoftware: formData.renderingSoftware,
+        selectedPlan: formData.selectedPlan,
+        status: "submitted",
+        createdAt: new Date(),
+      })
+      handleClose()
       
     } catch (error) {
       console.log(error)
@@ -189,7 +228,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
       <SimpleBackdrop
         open={backdrop.show}
         message={backdrop.message}
@@ -490,7 +529,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
       </DialogContent>
 
       <DialogActions sx={{ p: 3 }}>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleClose}>Cancel</Button>
         {activeStep > 0 && (
           <Button onClick={handleBack}>Back</Button>
         )}
