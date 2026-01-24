@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -21,8 +21,10 @@ import {
   Alert,
   Chip,
 } from '@mui/material';
+import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import { Upload, Cpu, Wallet, Check } from 'lucide-react';
 import { COLORS } from '../theme/theme';
+ 
 
 interface TaskSubmissionWizardProps {
   open: boolean;
@@ -64,6 +66,8 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
     selectedPlan: 'medium',
     walletConnected: false,
   });
+  const { open: openWallet } = useAppKit();
+  const { address, isConnected, } = useAppKitAccount();
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -71,6 +75,12 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
       setFormData({ ...formData, fileName: file.name });
     }
   };
+
+  useEffect(() => {
+    setFormData({ ...formData, walletConnected: isConnected });
+  }, [isConnected, formData])
+  
+
 
   const handleNext = () => {
     setActiveStep((prev) => prev + 1);
@@ -81,7 +91,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   };
 
   const handleConnectWallet = () => {
-    setFormData({ ...formData, walletConnected: true });
+    openWallet()
   };
 
   const handleSubmit = () => {
@@ -378,7 +388,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                   </Button>
                 ) : (
                   <Alert severity="success">
-                    Wallet connected: 0x742d...35A3
+                    Wallet connected: {address}
                   </Alert>
                 )}
               </Box>

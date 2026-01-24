@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import "./config/walletProvider.js"
+
+
+import { useState } from 'react';
 import { Box, CircularProgress } from '@mui/material';
 import Landing from './pages/Landing';
 import SignIn from './pages/SignIn';
 import ConsumerDashboard from './pages/ConsumerDashboard';
 import WorkerDashboard from './pages/WorkerDashboard';
 import {useFirebaseAuth} from "./hooks/useFirebaseAuth.js"
-
 export default function App() {
   const {user, logout, loading: loadingAuth} = useFirebaseAuth()
   const [currentView, setCurrentView] = useState<'landing' | 'signin' | 'dashboard'>('landing');
