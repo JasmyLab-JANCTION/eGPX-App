@@ -8,9 +8,10 @@ import DashboardLayout from '../components/DashboardLayout';
 interface WorkerDashboardProps {
   onRoleSwitch: () => void;
   onLogout: () => void;
+  user: object
 }
 
-export default function WorkerDashboard({ onRoleSwitch, onLogout }: WorkerDashboardProps) {
+export default function WorkerDashboard({ onRoleSwitch, onLogout, user }: WorkerDashboardProps) {
   const [activeMenuItem, setActiveMenuItem] = useState('dashboard');
   const [displayName, setDisplayName] = useState(mockUserProfile.name);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(mockUserProfile.twoFactorEnabled);
@@ -832,6 +833,7 @@ export default function WorkerDashboard({ onRoleSwitch, onLogout }: WorkerDashbo
       onRoleSwitch={onRoleSwitch}
       onLogout={onLogout}
       menuItems={menuItems}
+      user={user}
     >
       {renderContent()}
     </DashboardLayout>

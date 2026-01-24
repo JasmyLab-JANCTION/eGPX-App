@@ -57,7 +57,7 @@ export default function App() {
         <ConsumerDashboard onRoleSwitch={handleRoleSwitch} onLogout={handleLogout} user={user}/>
       )}
       {currentView === 'dashboard' && userRole === 'worker' && (
-        <WorkerDashboard onRoleSwitch={handleRoleSwitch} onLogout={handleLogout} />
+        <WorkerDashboard onRoleSwitch={handleRoleSwitch} onLogout={handleLogout} user={user}/>
       )}
     </Box>
   );
