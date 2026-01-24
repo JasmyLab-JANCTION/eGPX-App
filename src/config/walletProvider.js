@@ -4,7 +4,7 @@ import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import { sepolia } from "@reown/appkit/networks";
 
 // 1. Get projectId
-const projectId = import.meta.env.VITE_APP_KIT_PROJECT_ID;
+const projectId = import.meta.env.VITE_BLOCKCHAIN_APP_KIT_PROJECT_ID;
 
 // 2. Set the networks
 const networks = [sepolia];

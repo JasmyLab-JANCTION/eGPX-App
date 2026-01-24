@@ -20,11 +20,14 @@ import {
   Grid,
   Alert,
   Chip,
+  Divider,
 } from '@mui/material';
-import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
+import { useAppKit, useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
 import { Upload, Cpu, Wallet, Check } from 'lucide-react';
 import { COLORS } from '../theme/theme';
- 
+import { BrowserProvider, Contract, formatUnits } from 'ethers'
+import stableABI from "../contracts/StableCoin.json"
+import VideoRenderingABI from "../contracts/VideoRenderTasks.json"
 
 interface TaskSubmissionWizardProps {
   open: boolean;
@@ -32,7 +35,9 @@ interface TaskSubmissionWizardProps {
 }
 
 interface FormData {
+  taskName?: string;
   fileName: string;
+  fileUrl: string;
   frameFrom: string;
   frameTo: string;
   os: string;
@@ -58,16 +63,20 @@ const pricingOptions = [
 export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWizardProps) {
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState<FormData>({
+    taskName:"",
     fileName: '',
+    fileUrl: '',
     frameFrom: '1',
-    frameTo: '100',
-    os: 'any',
+    frameTo: '10',
+    os: 'linux',
     renderingSoftware: 'blender',
     selectedPlan: 'medium',
     walletConnected: false,
   });
+  //WEb3 stuff
   const { open: openWallet } = useAppKit();
   const { address, isConnected, } = useAppKitAccount();
+    const { walletProvider } = useAppKitProvider('eip155')
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -78,7 +87,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
 
   useEffect(() => {
     setFormData({ ...formData, walletConnected: isConnected });
-  }, [isConnected, formData])
+  }, [isConnected])
   
 
 
@@ -94,24 +103,36 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
     openWallet()
   };
 
-  const handleSubmit = () => {
-    alert('Task submitted successfully! (Mock)');
-    onClose();
-    setActiveStep(0);
-    setFormData({
-      fileName: '',
-      frameFrom: '1',
-      frameTo: '100',
-      os: 'any',
-      renderingSoftware: 'blender',
-      selectedPlan: 'medium',
-      walletConnected: false,
-    });
-  };
+  const handleSubmit = async () => {
+     const ethersProvider = new BrowserProvider(walletProvider)
+    const signer = await ethersProvider.getSigner()
+    // The Contract object
+    const stableContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_USDC_CONTRACT_ADDRESS, stableABI.abi, signer)
+    const balance = await stableContract.balanceOf(address)
+    console.log("Stablecoin balance:", formatUnits(balance, 6));
+    // we check balance just in case we are in a testnet and mint some tokens for testing
+    if (balance < 100000000) {
+      const mintTx = await stableContract.mint(address, 100000000)
+      await mintTx.wait();
+    }
+    
+    // we check allowance and approve if needed
+    const allowance = await stableContract.allowance(address, import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS);
+    console.log("Stablecoin allowance:", formatUnits(allowance, 6));
+    if (allowance < 100000000) {
+      const approveTx = await stableContract.approve(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, 100000000);
+      await approveTx.wait();
+    }
+
+    const VideoRenderingContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, VideoRenderingABI.abi, signer);
+    const task = await VideoRenderingContract.createTask("https://firebasestorage.googleapis.com/v0/b/layer1-dev.firebasestorage.app/o/videoRenderingTasks%2Fgreasepencil-bike.blend?alt=media", "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 100000000);
+    const tx = await task.wait()
+    console.log("Task created:", tx);
+  }
 
   const isStepValid = () => {
     if (activeStep === 0) {
-      return formData.fileName && formData.frameFrom && formData.frameTo;
+      return formData.taskName &&formData.fileName && formData.frameFrom && formData.frameTo;
     }
     return true;
   };
@@ -136,6 +157,22 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
 
           {activeStep === 0 && (
             <Box>
+              <Box marginBottom={3}>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                Give your task a name
+              </Typography>
+
+              <TextField
+                    label="Task Name"
+                    helperText="This will help you identify your task later"
+                    type="text"
+                    fullWidth
+                    value={formData.taskName}
+                    onChange={(e) => setFormData({ ...formData, taskName: e.target.value })}
+                    inputProps={{ min: 1 }}
+                  />
+                  <Divider sx={{ my: 2 }} />
+              </Box>
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                 Upload Animation File & Frame Range
               </Typography>
@@ -219,12 +256,12 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                   <Grid container spacing={2}>
                     <Grid item xs={6} sm={3}>
                       <Paper sx={{ p: 2 }}>
-                        <FormControlLabel value="windows" control={<Radio />} label="Windows" />
+                        <FormControlLabel value="windows" control={<Radio />} disabled label="Windows" />
                       </Paper>
                     </Grid>
                     <Grid item xs={6} sm={3}>
                       <Paper sx={{ p: 2 }}>
-                        <FormControlLabel value="mac" control={<Radio />} label="Mac" />
+                        <FormControlLabel value="mac" control={<Radio />} disabled label="Mac" />
                       </Paper>
                     </Grid>
                     <Grid item xs={6} sm={3}>
@@ -234,7 +271,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                     </Grid>
                     <Grid item xs={6} sm={3}>
                       <Paper sx={{ p: 2 }}>
-                        <FormControlLabel value="any" control={<Radio />} label="I don't care" />
+                        <FormControlLabel value="any" control={<Radio />} disabled label="Any" />
                       </Paper>
                     </Grid>
                   </Grid>
@@ -257,17 +294,17 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                     </Grid>
                     <Grid item xs={6}>
                       <Paper sx={{ p: 2 }}>
-                        <FormControlLabel value="corona" control={<Radio />} label="Chaos Corona" />
+                        <FormControlLabel value="corona" control={<Radio />} disabled label="Chaos Corona" />
                       </Paper>
                     </Grid>
                     <Grid item xs={6}>
                       <Paper sx={{ p: 2 }}>
-                        <FormControlLabel value="redshift" control={<Radio />} label="Redshift" />
+                        <FormControlLabel value="redshift" control={<Radio />} disabled label="Redshift" />
                       </Paper>
                     </Grid>
                     <Grid item xs={6}>
                       <Paper sx={{ p: 2 }}>
-                        <FormControlLabel value="vray" control={<Radio />} label="V-Ray" />
+                        <FormControlLabel value="vray" control={<Radio />} disabled label="V-Ray" />
                       </Paper>
                     </Grid>
                   </Grid>
