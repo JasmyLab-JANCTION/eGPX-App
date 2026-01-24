@@ -21,6 +21,7 @@ import {
   Alert,
   Chip,
   Divider,
+  Backdrop,
 } from '@mui/material';
 import { useAppKit, useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
 import { Upload, Cpu, Wallet, Check } from 'lucide-react';
@@ -28,6 +29,9 @@ import { COLORS } from '../theme/theme';
 import { BrowserProvider, Contract, formatUnits } from 'ethers'
 import stableABI from "../contracts/StableCoin.json"
 import VideoRenderingABI from "../contracts/VideoRenderTasks.json"
+import SimpleBackdrop from './SimpleBackdrop';
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { storage, db } from '../config/firebase.js';
 
 interface TaskSubmissionWizardProps {
   open: boolean;
@@ -37,6 +41,7 @@ interface TaskSubmissionWizardProps {
 interface FormData {
   taskName?: string;
   fileName: string;
+  file: File;
   fileUrl: string;
   frameFrom: string;
   frameTo: string;
@@ -65,6 +70,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   const [formData, setFormData] = useState<FormData>({
     taskName:"",
     fileName: '',
+    file: {} as File,
     fileUrl: '',
     frameFrom: '1',
     frameTo: '10',
@@ -73,15 +79,16 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
     selectedPlan: 'medium',
     walletConnected: false,
   });
+  const [backdrop, setBackdrop] = useState({show: false, message: ""})
   //WEb3 stuff
   const { open: openWallet } = useAppKit();
   const { address, isConnected, } = useAppKitAccount();
-    const { walletProvider } = useAppKitProvider('eip155')
+  const { walletProvider } = useAppKitProvider('eip155')
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.name.endsWith('.blend')) {
-      setFormData({ ...formData, fileName: file.name });
+      setFormData({ ...formData, fileName: file.name, file: file });
     }
   };
 
@@ -103,31 +110,75 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
     openWallet()
   };
 
-  const handleSubmit = async () => {
-     const ethersProvider = new BrowserProvider(walletProvider)
-    const signer = await ethersProvider.getSigner()
-    // The Contract object
-    const stableContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_USDC_CONTRACT_ADDRESS, stableABI.abi, signer)
-    const balance = await stableContract.balanceOf(address)
-    console.log("Stablecoin balance:", formatUnits(balance, 6));
-    // we check balance just in case we are in a testnet and mint some tokens for testing
-    if (balance < 100000000) {
-      const mintTx = await stableContract.mint(address, 100000000)
-      await mintTx.wait();
-    }
-    
-    // we check allowance and approve if needed
-    const allowance = await stableContract.allowance(address, import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS);
-    console.log("Stablecoin allowance:", formatUnits(allowance, 6));
-    if (allowance < 100000000) {
-      const approveTx = await stableContract.approve(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, 100000000);
-      await approveTx.wait();
-    }
+  const uploadFileToFirebase = async () => {
+    return new Promise<string>((resolve, reject) => {
+      const storageRef = ref(storage, `videoRenderingTasks/${formData.fileName}`); // Create a reference to the file location
+      const uploadTask = uploadBytesResumable(storageRef, formData.file);
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          // Monitor upload progress
+        const progress = Math.round(
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+        );
+        setBackdrop({show: true, message: `Uploading animation ${formData.fileName}: ${progress}%`})
+        },
+        (error) => {
+          reject(error);
+        },
+        async () => {
+          // Upload completed successfully, now get the download URL
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(downloadURL);
+        }
+      );
+    });
+  };
 
-    const VideoRenderingContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, VideoRenderingABI.abi, signer);
-    const task = await VideoRenderingContract.createTask("https://firebasestorage.googleapis.com/v0/b/layer1-dev.firebasestorage.app/o/videoRenderingTasks%2Fgreasepencil-bike.blend?alt=media", "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 100000000);
-    const tx = await task.wait()
-    console.log("Task created:", tx);
+  const handleSubmit = async () => {
+    setBackdrop({show: true, message: `Uploading animation ${formData.fileName}...`})
+
+    const downloadUrl = await uploadFileToFirebase()
+    setFormData({ ...formData, fileUrl: downloadUrl })
+
+    setBackdrop({show: true, message: `Submitting rendering task to blockchain...`})
+
+
+    try {
+      const ethersProvider = new BrowserProvider(walletProvider)
+      const signer = await ethersProvider.getSigner()
+      // The Contract object
+      const stableContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_USDC_CONTRACT_ADDRESS, stableABI.abi, signer)
+      const balance = await stableContract.balanceOf(address)
+      console.log("Stablecoin balance:", formatUnits(balance, 6));
+      // we check balance just in case we are in a testnet and mint some tokens for testing
+      if (balance < 100000000) {
+        setBackdrop({show: true, message: `Sign minting transaction in your wallet...`})
+        const mintTx = await stableContract.mint(address, 100000000)
+        await mintTx.wait();
+      }
+      
+      // we check allowance and approve if needed
+      const allowance = await stableContract.allowance(address, import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS);
+      console.log("Stablecoin allowance:", formatUnits(allowance, 6));
+      if (allowance < 100000000) {
+        setBackdrop({show: true, message: `Approve cap transfer in your wallet...`})
+        const approveTx = await stableContract.approve(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, 100000000);
+        await approveTx.wait();
+      }
+  
+      setBackdrop({show: true, message: `Sign video rendering task submittion in your wallet...`})
+      const VideoRenderingContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, VideoRenderingABI.abi, signer);
+      const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 100000000);
+      const tx = await task.wait()
+      console.log("Task created:", tx);
+      
+    } catch (error) {
+      console.log(error)
+    } finally {
+      
+      setBackdrop({show: false, message: ""})
+    }
   }
 
   const isStepValid = () => {
@@ -139,6 +190,10 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <SimpleBackdrop
+        open={backdrop.show}
+        message={backdrop.message}
+      />
       <DialogTitle>
         <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '1.5rem', fontWeight: 700 }}>
           Submit New Rendering Task
