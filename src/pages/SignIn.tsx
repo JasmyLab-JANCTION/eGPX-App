@@ -1,16 +1,23 @@
 import { Box, Container, Paper, Typography, TextField, Button, Divider } from '@mui/material';
 import { Network, Mail } from 'lucide-react';
 import { COLORS } from '../theme/theme';
-
+import {useFirebaseAuth} from "../hooks/useFirebaseAuth.js"
 interface SignInProps {
   onSignIn: () => void;
 }
 
 export default function SignIn({ onSignIn }: SignInProps) {
+  const { signInWithGoogle } = useFirebaseAuth();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSignIn();
   };
+
+  const handleSignInWithGoogle = async () => {
+    await signInWithGoogle()
+    onSignIn();
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: '#F8F9FA' }}>
@@ -72,6 +79,7 @@ export default function SignIn({ onSignIn }: SignInProps) {
 
             <Button
               fullWidth
+              onClick={handleSignInWithGoogle}
               variant="outlined"
               startIcon={
                 <svg width="18" height="18" viewBox="0 0 18 18">

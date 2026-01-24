@@ -1,17 +1,35 @@
-import { useState } from 'react';
-import { Box } from '@mui/material';
+import { useEffect, useState } from 'react';
+import { Box, CircularProgress } from '@mui/material';
 import Landing from './pages/Landing';
 import SignIn from './pages/SignIn';
 import ConsumerDashboard from './pages/ConsumerDashboard';
 import WorkerDashboard from './pages/WorkerDashboard';
+import {useFirebaseAuth} from "./hooks/useFirebaseAuth.js"
 
 export default function App() {
+  const {user, loading: loadingAuth} = useFirebaseAuth()
   const [currentView, setCurrentView] = useState<'landing' | 'signin' | 'dashboard'>('landing');
   const [userRole, setUserRole] = useState<'consumer' | 'worker'>('consumer');
 
   const handleLaunchApp = () => {
-    setCurrentView('signin');
+    if (user) {
+      setCurrentView('dashboard');
+    } else {
+      setCurrentView('signin');
+    }
+
   };
+
+  useEffect(() => {
+    if (loadingAuth) return;
+    console.log("user", user)
+    if (user) {
+      setCurrentView('dashboard');
+    } else {
+      setCurrentView('signin');
+    }
+  }, [user, loadingAuth])
+  
 
   const handleSignIn = () => {
     setCurrentView('dashboard');
@@ -25,6 +43,10 @@ export default function App() {
     setCurrentView('landing');
     setUserRole('consumer');
   };
+
+  if (loadingAuth) return (<Box display={"flex"} alignItems={"center"} justifyContent={"center"} margin={10}>
+    <CircularProgress/>
+    </Box>)
 
   return (
     <Box>

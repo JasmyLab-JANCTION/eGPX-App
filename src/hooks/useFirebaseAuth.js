@@ -11,21 +11,16 @@
 // 3. Restart the dev server
 
 import { useState, useEffect, useCallback } from "react";
-const { auth, googleAuthProvider, db } = require("../config/firebase");
-// Check if Firebase is configured
-const isFirebaseConfigured = !!(
-  process.env.REACT_APP_FIREBASE_API_KEY &&
-  process.env.REACT_APP_FIREBASE_PROJECT_ID
-);
+import { auth, googleAuthProvider } from "../config/firebase";
 
 export const useFirebaseAuth = () => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Listen for auth state changes (production mode only)
   useEffect(() => {
-    if (!isFirebaseConfigured || !auth) {
+    if (!auth) {
       console.info("Craton: Running in DEMO MODE (Firebase not configured)");
       setLoading(false);
       return;
@@ -40,7 +35,7 @@ export const useFirebaseAuth = () => {
 
   // Sign in with Google
   const signInWithGoogle = useCallback(async () => {
-    if (!isFirebaseConfigured || !auth) {
+    if (!auth) {
       console.warn("signInWithGoogle: Demo mode - skipping auth");
       return null;
     }
@@ -60,7 +55,7 @@ export const useFirebaseAuth = () => {
 
   // Sign in with email/password
   const signInWithEmail = useCallback(async (email, password) => {
-    if (!isFirebaseConfigured || !auth) {
+    if (!auth) {
       console.warn("signInWithEmail: Demo mode - skipping auth");
       return null;
     }
@@ -79,7 +74,7 @@ export const useFirebaseAuth = () => {
 
   // Sign up with email/password
   const signUpWithEmail = useCallback(async (email, password) => {
-    if (!isFirebaseConfigured || !auth) {
+    if (!auth) {
       console.warn("signUpWithEmail: Demo mode - skipping auth");
       return null;
     }
@@ -98,7 +93,7 @@ export const useFirebaseAuth = () => {
 
   // Send password reset email
   const resetPassword = useCallback(async (email) => {
-    if (!isFirebaseConfigured || !auth) {
+    if (!auth) {
       console.warn("resetPassword: Demo mode - skipping");
       return;
     }
@@ -114,7 +109,7 @@ export const useFirebaseAuth = () => {
 
   // Sign out
   const logout = useCallback(async () => {
-    if (!isFirebaseConfigured || !auth) {
+    if (!auth) {
       setUser(null);
       return;
     }
@@ -142,7 +137,6 @@ export const useFirebaseAuth = () => {
     logout,
     clearError,
     isAuthenticated: !!user,
-    isFirebaseConfigured, // Expose this so components know which mode
   };
 };
 

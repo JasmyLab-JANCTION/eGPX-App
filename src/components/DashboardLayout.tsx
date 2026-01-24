@@ -3,6 +3,7 @@ import { Box, List, ListItemButton, ListItemIcon, ListItemText, Typography, Avat
 import { Network, Bell, Settings, LogOut, ListChecks, BarChart3, User, CheckCircle2, Users, Shield } from 'lucide-react';
 import { COLORS } from '../theme/theme';
 import { mockUserProfile } from '../mockData';
+import {useFirebaseAuth} from "../hooks/useFirebaseAuth.js"
 
 interface MenuItemType {
   id: string;
@@ -29,7 +30,9 @@ export default function DashboardLayout({
   onLogout,
   menuItems
 }: DashboardLayoutProps) {
-  const profile = mockUserProfile;
+  const {user}= useFirebaseAuth()
+  console.log(user)
+  const profile = user;
   const [notificationAnchor, setNotificationAnchor] = useState<null | HTMLElement>(null);
 
   const consumerNotifications = [
@@ -275,13 +278,13 @@ export default function DashboardLayout({
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: COLORS.navy }}>
-                  {profile.name}
+                  {profile.displayName}
                 </Typography>
                 <Typography sx={{ fontSize: '0.6875rem', color: COLORS.slate }}>
                   {profile.email}
                 </Typography>
               </Box>
-              <Avatar src={profile.avatar} sx={{ width: 40, height: 40, border: `2px solid ${COLORS.border}` }} />
+              <Avatar src={profile.photoURL} sx={{ width: 40, height: 40, border: `2px solid ${COLORS.border}` }} />
             </Box>
           </Box>
         </Box>
