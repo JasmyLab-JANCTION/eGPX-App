@@ -1,0 +1,602 @@
+import { useState } from 'react';
+import { Box, Typography, Button, Paper, Grid, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Divider, TextField, FormControlLabel, Switch, CircularProgress } from '@mui/material';
+import { ListChecks, BarChart3, Settings, Plus, Download, Check, CheckCircle } from 'lucide-react';
+import { COLORS } from '../theme/theme';
+import { mockTasks, mockBlockchainStats, mockUserProfile } from '../mockData';
+import DashboardLayout from '../components/DashboardLayout';
+import TaskSubmissionWizard from '../components/TaskSubmissionWizard';
+
+interface ConsumerDashboardProps {
+  onRoleSwitch: () => void;
+  onLogout: () => void;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  status: string;
+  startFrame: number;
+  endFrame: number;
+  cost: number;
+  file?: string;
+  submittedAt?: string;
+  workersAssigned?: number;
+  progress?: number;
+}
+
+const generateMockAddresses = (count: number): string[] => {
+  const addresses = [];
+  for (let i = 0; i < count; i++) {
+    const prefix = '0x' + Math.random().toString(16).substring(2, 10);
+    const suffix = Math.random().toString(16).substring(2, 9);
+    addresses.push(`${prefix}...${suffix}`);
+  }
+  return addresses;
+};
+
+const generateRandomFrame = () => Math.floor(Math.random() * 240) + 1;
+
+export default function ConsumerDashboard({ onRoleSwitch, onLogout }: ConsumerDashboardProps) {
+  const [activeMenuItem, setActiveMenuItem] = useState('my-tasks');
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [displayName, setDisplayName] = useState(mockUserProfile.name);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(mockUserProfile.twoFactorEnabled);
+
+  const menuItems = [
+    { id: 'my-tasks', label: 'My Tasks', icon: ListChecks },
+    { id: 'network', label: 'Network', icon: BarChart3 },
+    { id: 'settings', label: 'Settings', icon: Settings }
+  ];
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return COLORS.green;
+      case 'rendering': return COLORS.gold;
+      case 'queued': return COLORS.blue;
+      default: return COLORS.slate;
+    }
+  };
+
+  const handleViewDetails = (task: Task) => {
+    setSelectedTask(task);
+    setDetailsDialogOpen(true);
+  };
+
+  const handleCloseDetails = () => {
+    setDetailsDialogOpen(false);
+    setSelectedTask(null);
+  };
+
+  const renderTaskDetailsDialog = () => {
+    if (!selectedTask) return null;
+
+    if (selectedTask.status === 'completed') {
+      const verifierAddresses = generateMockAddresses(5);
+      const totalReward = 320;
+      const winnerReward = totalReward * 0.5;
+      const verifierReward = (totalReward * 0.5) / verifierAddresses.length;
+
+      return (
+        <Dialog open={detailsDialogOpen} onClose={handleCloseDetails} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '1.5rem', fontWeight: 700, color: COLORS.navy }}>
+              Task Completed
+            </Typography>
+            <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate, mt: 0.5 }}>
+              {selectedTask.title}
+            </Typography>
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <Check size={20} style={{ color: COLORS.green }} />
+                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate }}>
+                  Winner Node
+                </Typography>
+              </Box>
+              <Paper sx={{ p: 2, bgcolor: COLORS.background, border: `1px solid ${COLORS.border}` }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '0.9375rem', fontWeight: 600, color: COLORS.navy }}>
+                    0x2BFaadCa3...167e004
+                  </Typography>
+                  <Chip
+                    label={`$${winnerReward.toFixed(0)}`}
+                    size="small"
+                    sx={{
+                      bgcolor: `${COLORS.green}20`,
+                      color: COLORS.green,
+                      fontWeight: 700,
+                      fontSize: '0.8125rem',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                </Box>
+              </Paper>
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Box>
+              <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 2 }}>
+                Verifiers ({verifierAddresses.length} Nodes)
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {verifierAddresses.map((address, index) => (
+                  <Paper key={index} sx={{ p: 1.5, bgcolor: COLORS.background, border: `1px solid ${COLORS.border}` }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography sx={{ fontFamily: 'monospace', fontSize: '0.8125rem', color: COLORS.navy }}>
+                        {address}
+                      </Typography>
+                      <Chip
+                        label={`$${verifierReward.toFixed(0)}`}
+                        size="small"
+                        sx={{
+                          bgcolor: `${COLORS.blue}20`,
+                          color: COLORS.blue,
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 2 }}>
+            <Button
+              onClick={handleCloseDetails}
+              sx={{
+                color: COLORS.slate,
+                textTransform: 'none',
+                fontSize: '0.875rem',
+                fontWeight: 600
+              }}
+            >
+              Close
+            </Button>
+            <Button
+              startIcon={<Download size={18} />}
+              sx={{
+                bgcolor: COLORS.navy,
+                color: COLORS.white,
+                px: 3,
+                py: 1,
+                textTransform: 'none',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                '&:hover': { bgcolor: COLORS.navyLight }
+              }}
+            >
+              Download Animation
+            </Button>
+          </DialogActions>
+        </Dialog>
+      );
+    }
+
+    if (selectedTask.status === 'rendering') {
+      const renderingNodes = Array.from({ length: 6 }, (_, i) => ({
+        address: generateMockAddresses(1)[0],
+        frame: generateRandomFrame(),
+        progress: Math.floor(Math.random() * 40) + 30
+      }));
+
+      return (
+        <Dialog open={detailsDialogOpen} onClose={handleCloseDetails} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '1.5rem', fontWeight: 700, color: COLORS.navy }}>
+              Task In Progress
+            </Typography>
+            <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate, mt: 0.5 }}>
+              {selectedTask.title}
+            </Typography>
+          </DialogTitle>
+          <DialogContent>
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 2 }}>
+              Active Nodes ({renderingNodes.length} Working)
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {renderingNodes.map((node, index) => (
+                <Paper key={index} sx={{ p: 2, bgcolor: COLORS.background, border: `1px solid ${COLORS.border}` }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <CircularProgress
+                        variant="determinate"
+                        value={node.progress}
+                        size={36}
+                        thickness={4}
+                        sx={{ color: COLORS.gold }}
+                      />
+                      <Typography
+                        sx={{
+                          position: 'absolute',
+                          fontSize: '0.625rem',
+                          fontWeight: 700,
+                          color: COLORS.gold
+                        }}
+                      >
+                        {node.progress}%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography sx={{ fontFamily: 'monospace', fontSize: '0.8125rem', fontWeight: 600, color: COLORS.navy }}>
+                        {node.address}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={`Frame ${node.frame}`}
+                      size="small"
+                      sx={{
+                        bgcolor: `${COLORS.gold}20`,
+                        color: COLORS.gold,
+                        fontWeight: 600,
+                        fontSize: '0.6875rem'
+                      }}
+                    />
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 2 }}>
+            <Button
+              onClick={handleCloseDetails}
+              sx={{
+                bgcolor: COLORS.navy,
+                color: COLORS.white,
+                px: 3,
+                py: 1,
+                textTransform: 'none',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                '&:hover': { bgcolor: COLORS.navyLight }
+              }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+      );
+    }
+
+    return null;
+  };
+
+  const renderContent = () => {
+    switch (activeMenuItem) {
+      case 'my-tasks':
+        return (
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+              <Box>
+                <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '2rem', fontWeight: 700, color: COLORS.navy, mb: 1 }}>
+                  My Tasks
+                </Typography>
+                <Typography sx={{ fontSize: '0.9375rem', color: COLORS.slate }}>
+                  Manage your rendering tasks and submit new ones
+                </Typography>
+              </Box>
+              <Button
+                startIcon={<Plus size={20} />}
+                onClick={() => setWizardOpen(true)}
+                sx={{
+                  bgcolor: COLORS.navy,
+                  color: COLORS.white,
+                  px: 3,
+                  py: 1.25,
+                  textTransform: 'none',
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                  '&:hover': { bgcolor: '#0a1628' }
+                }}
+              >
+                Submit New Task
+              </Button>
+            </Box>
+
+            <Box sx={{ mb: 4 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.blue}` }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                      Active Tasks
+                    </Typography>
+                    <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
+                      {mockTasks.filter(t => t.status !== 'completed').length}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.green}` }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                      Completed
+                    </Typography>
+                    <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
+                      {mockTasks.filter(t => t.status === 'completed').length}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.gold}` }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                      Total Spent
+                    </Typography>
+                    <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
+                      ${mockTasks.reduce((sum, t) => sum + t.cost, 0).toLocaleString()}
+                    </Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Paper>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#F8F9FA' }}>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Task</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Frames</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cost</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {mockTasks.map(task => (
+                      <TableRow key={task.id} sx={{ '&:hover': { bgcolor: '#F8F9FA' } }}>
+                        <TableCell>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>{task.title}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate }}>
+                            {task.startFrame}-{task.endFrame}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={task.status}
+                            size="small"
+                            sx={{
+                              bgcolor: `${getStatusColor(task.status)}20`,
+                              color: getStatusColor(task.status),
+                              fontWeight: 600,
+                              fontSize: '0.75rem',
+                              textTransform: 'capitalize'
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                            ${task.cost.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            onClick={() => handleViewDetails(task)}
+                            sx={{ textTransform: 'none', fontSize: '0.8125rem', color: COLORS.navy, fontWeight: 600 }}
+                          >
+                            View Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          </Box>
+        );
+
+      case 'network':
+        return (
+          <Box>
+            <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '2rem', fontWeight: 700, color: COLORS.navy, mb: 1 }}>
+              Network Stats
+            </Typography>
+            <Typography sx={{ fontSize: '0.9375rem', color: COLORS.slate, mb: 4 }}>
+              Real-time network performance and worker statistics
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={3}>
+                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.gold}` }}>
+                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                    Active Workers
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
+                    {mockBlockchainStats.activeWorkers.toLocaleString()}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.green}` }}>
+                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                    Tasks Completed
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
+                    {mockBlockchainStats.totalTasksCompleted.toLocaleString()}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.blue}` }}>
+                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                    Frames Rendered
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
+                    {(mockBlockchainStats.framesRendered / 1000000).toFixed(1)}M
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.gold}` }}>
+                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                    Avg Frame Time
+                  </Typography>
+                  <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
+                    {mockBlockchainStats.avgFrameRenderTime}s
+                  </Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
+      case 'settings':
+        return (
+          <Box>
+            <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '2rem', fontWeight: 700, color: COLORS.navy, mb: 1 }}>
+              Settings
+            </Typography>
+            <Typography sx={{ fontSize: '0.9375rem', color: COLORS.slate, mb: 4 }}>
+              Manage your account settings and preferences
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 4 }}>
+                  <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: COLORS.navy, mb: 3 }}>
+                    Profile Settings
+                  </Typography>
+
+                  <Box sx={{ mb: 3 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                      Display Name
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      size="small"
+                      placeholder="Enter your display name"
+                    />
+                  </Box>
+
+                  <Box sx={{ mb: 3 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
+                      Email Address
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={mockUserProfile.email}
+                      size="small"
+                      disabled
+                      sx={{ bgcolor: '#F8F9FA' }}
+                    />
+                    <Typography sx={{ fontSize: '0.75rem', color: COLORS.slate, mt: 0.5 }}>
+                      Email cannot be changed
+                    </Typography>
+                  </Box>
+
+                  <Button
+                    fullWidth
+                    sx={{
+                      bgcolor: COLORS.navy,
+                      color: COLORS.white,
+                      py: 1.25,
+                      textTransform: 'none',
+                      fontSize: '0.9375rem',
+                      fontWeight: 600,
+                      '&:hover': { bgcolor: '#0a1628' }
+                    }}
+                  >
+                    Save Profile Changes
+                  </Button>
+                </Paper>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 4 }}>
+                  <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: COLORS.navy, mb: 3 }}>
+                    Security Settings
+                  </Typography>
+
+                  <Box sx={{ mb: 3, p: 3, bgcolor: twoFactorEnabled ? `${COLORS.green}10` : '#F8F9FA', borderRadius: 1, border: `1px solid ${twoFactorEnabled ? COLORS.green : COLORS.border}` }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={twoFactorEnabled}
+                          onChange={(e) => setTwoFactorEnabled(e.target.checked)}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                            Two-Factor Authentication
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.slate }}>
+                            Add an extra layer of security to your account
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    {twoFactorEnabled && (
+                      <Box sx={{ mt: 2, p: 2, bgcolor: COLORS.white, borderRadius: 1, border: `1px solid ${COLORS.border}` }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <CheckCircle size={16} color={COLORS.green} />
+                          <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, color: COLORS.green }}>
+                            2FA Enabled
+                          </Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: '0.75rem', color: COLORS.slate }}>
+                          Your account is protected with two-factor authentication
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Box>
+                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: COLORS.navy, mb: 2 }}>
+                      Change Password
+                    </Typography>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      sx={{
+                        borderColor: COLORS.border,
+                        color: COLORS.navy,
+                        py: 1.25,
+                        textTransform: 'none',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        '&:hover': { borderColor: COLORS.navy, bgcolor: 'transparent' }
+                      }}
+                    >
+                      Update Password
+                    </Button>
+                  </Box>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      <DashboardLayout
+        userRole="consumer"
+        activeMenuItem={activeMenuItem}
+        onMenuItemClick={setActiveMenuItem}
+        onRoleSwitch={onRoleSwitch}
+        onLogout={onLogout}
+        menuItems={menuItems}
+      >
+        {renderContent()}
+      </DashboardLayout>
+      <TaskSubmissionWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
+      {renderTaskDetailsDialog()}
+    </>
+  );
+}
