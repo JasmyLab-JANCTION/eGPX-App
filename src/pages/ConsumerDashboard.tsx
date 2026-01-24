@@ -9,6 +9,7 @@ import TaskSubmissionWizard from '../components/TaskSubmissionWizard';
 interface ConsumerDashboardProps {
   onRoleSwitch: () => void;
   onLogout: () => void;
+  user: object
 }
 
 interface Task {
@@ -36,7 +37,7 @@ const generateMockAddresses = (count: number): string[] => {
 
 const generateRandomFrame = () => Math.floor(Math.random() * 240) + 1;
 
-export default function ConsumerDashboard({ onRoleSwitch, onLogout }: ConsumerDashboardProps) {
+export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: ConsumerDashboardProps) {
   const [activeMenuItem, setActiveMenuItem] = useState('my-tasks');
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -592,6 +593,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout }: ConsumerDa
         onRoleSwitch={onRoleSwitch}
         onLogout={onLogout}
         menuItems={menuItems}
+        user={user}
       >
         {renderContent()}
       </DashboardLayout>

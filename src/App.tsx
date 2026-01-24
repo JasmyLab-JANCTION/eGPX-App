@@ -7,7 +7,7 @@ import WorkerDashboard from './pages/WorkerDashboard';
 import {useFirebaseAuth} from "./hooks/useFirebaseAuth.js"
 
 export default function App() {
-  const {user, loading: loadingAuth} = useFirebaseAuth()
+  const {user, logout, loading: loadingAuth} = useFirebaseAuth()
   const [currentView, setCurrentView] = useState<'landing' | 'signin' | 'dashboard'>('landing');
   const [userRole, setUserRole] = useState<'consumer' | 'worker'>('consumer');
 
@@ -20,15 +20,14 @@ export default function App() {
 
   };
 
-  useEffect(() => {
-    if (loadingAuth) return;
-    console.log("user", user)
-    if (user) {
-      setCurrentView('dashboard');
-    } else {
-      setCurrentView('signin');
-    }
-  }, [user, loadingAuth])
+  // useEffect(() => {
+  //   if (loadingAuth) return;
+  //   if (user) {
+  //     setCurrentView('dashboard');
+  //   } else {
+  //     setCurrentView('signin');
+  //   }
+  // }, [user, loadingAuth])
   
 
   const handleSignIn = () => {
@@ -42,10 +41,12 @@ export default function App() {
   const handleLogout = () => {
     setCurrentView('landing');
     setUserRole('consumer');
+    logout()
   };
 
-  if (loadingAuth) return (<Box display={"flex"} alignItems={"center"} justifyContent={"center"} margin={10}>
-    <CircularProgress/>
+  if (loadingAuth) return 
+    (<Box display={"flex"} alignItems={"center"} justifyContent={"center"} margin={10}>
+      <CircularProgress/>
     </Box>)
 
   return (
@@ -53,7 +54,7 @@ export default function App() {
       {currentView === 'landing' && <Landing onLaunchApp={handleLaunchApp} />}
       {currentView === 'signin' && <SignIn onSignIn={handleSignIn} />}
       {currentView === 'dashboard' && userRole === 'consumer' && (
-        <ConsumerDashboard onRoleSwitch={handleRoleSwitch} onLogout={handleLogout} />
+        <ConsumerDashboard onRoleSwitch={handleRoleSwitch} onLogout={handleLogout} user={user}/>
       )}
       {currentView === 'dashboard' && userRole === 'worker' && (
         <WorkerDashboard onRoleSwitch={handleRoleSwitch} onLogout={handleLogout} />

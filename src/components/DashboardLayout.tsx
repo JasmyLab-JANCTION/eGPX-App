@@ -1,8 +1,7 @@
 import { ReactNode, useState } from 'react';
-import { Box, List, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Badge, Menu, MenuItem, Divider } from '@mui/material';
-import { Network, Bell, Settings, LogOut, ListChecks, BarChart3, User, CheckCircle2, Users, Shield } from 'lucide-react';
+import { Box, List, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Badge, Menu, MenuItem, Divider, Button } from '@mui/material';
+import { Network, Bell, Settings, CheckCircle2, Users, Shield } from 'lucide-react';
 import { COLORS } from '../theme/theme';
-import { mockUserProfile } from '../mockData';
 import {useFirebaseAuth} from "../hooks/useFirebaseAuth.js"
 
 interface MenuItemType {
@@ -19,6 +18,7 @@ interface DashboardLayoutProps {
   onRoleSwitch: () => void;
   onLogout: () => void;
   menuItems: MenuItemType[];
+  user: object
 }
 
 export default function DashboardLayout({
@@ -28,12 +28,13 @@ export default function DashboardLayout({
   onMenuItemClick,
   onRoleSwitch,
   onLogout,
-  menuItems
+  menuItems,
+  user
 }: DashboardLayoutProps) {
-  const {user}= useFirebaseAuth()
-  console.log(user)
-  const profile = user;
   const [notificationAnchor, setNotificationAnchor] = useState<null | HTMLElement>(null);
+const [openMenu, setOpenMenu] = useState(false)
+const [anchorEl, setAnchorEl] = useState(null);
+  
 
   const consumerNotifications = [
     {
@@ -80,6 +81,11 @@ export default function DashboardLayout({
   const handleNotificationClose = () => {
     setNotificationAnchor(null);
   };
+
+  const handleProfileClick = (event) => {
+    setAnchorEl(event.currentTarget) 
+    setOpenMenu(true);
+  }
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F5F7FA' }}>
@@ -275,17 +281,30 @@ export default function DashboardLayout({
               })}
             </Menu>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }} component={Button} onClick={handleProfileClick}>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: COLORS.navy }}>
-                  {profile.displayName}
+                  {user.displayName || user.email || "N/A"}
                 </Typography>
                 <Typography sx={{ fontSize: '0.6875rem', color: COLORS.slate }}>
-                  {profile.email}
+                  {user.email}
                 </Typography>
               </Box>
-              <Avatar src={profile.photoURL} sx={{ width: 40, height: 40, border: `2px solid ${COLORS.border}` }} />
+              <Avatar src={user.photoURL} sx={{ width: 40, height: 40, border: `2px solid ${COLORS.border}` }} />
             </Box>
+                  <Menu
+                    id="basic-menu"
+                    anchorEl={anchorEl}
+                    open={openMenu}
+                    onClose={() => setOpenMenu(false)}
+                    slotProps={{
+                      list: {
+                        'aria-labelledby': 'basic-button',
+                      },
+                    }}
+      >
+        <MenuItem onClick={onLogout}>Logout</MenuItem>
+      </Menu>
           </Box>
         </Box>
 
