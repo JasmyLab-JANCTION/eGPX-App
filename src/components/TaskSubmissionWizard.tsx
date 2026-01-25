@@ -26,7 +26,7 @@ import {
 import { useAppKit, useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
 import { Upload, Cpu, Wallet, Check } from 'lucide-react';
 import { COLORS } from '../theme/theme';
-import { BrowserProvider, Contract, formatUnits } from 'ethers'
+import { BrowserProvider, Contract, formatUnits, parseUnits } from 'ethers'
 import stableABI from "../contracts/StableCoin.json"
 import VideoRenderingABI from "../contracts/VideoRenderTasks.json"
 import SimpleBackdrop from './SimpleBackdrop';
@@ -160,24 +160,25 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
       const balance = await stableContract.balanceOf(address)
       console.log("Stablecoin balance:", formatUnits(balance, 6));
       // we check balance just in case we are in a testnet and mint some tokens for testing
-      if (balance < 100000000) {
+      if (balance < 50000000) {
         setBackdrop({show: true, message: `Sign minting transaction in your wallet...`})
-        const mintTx = await stableContract.mint(address, 100000000)
+        const mintTx = await stableContract.mint(address, 50000000)
         await mintTx.wait();
       }
       
       // we check allowance and approve if needed
       const allowance = await stableContract.allowance(address, import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS);
       console.log("Stablecoin allowance:", formatUnits(allowance, 6));
-      if (allowance < 100000000) {
+      if (allowance < 50000000) {
         setBackdrop({show: true, message: `Approve cap transfer in your wallet...`})
-        const approveTx = await stableContract.approve(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, 100000000);
+        const approveTx = await stableContract.approve(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, 50000000);
         await approveTx.wait();
       }
   
       setBackdrop({show: true, message: `Sign video rendering task submittion in your wallet...`})
       const VideoRenderingContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, VideoRenderingABI.abi, signer);
-      const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 100000000);
+      const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 50000000);
+      setBackdrop({show: true, message: `Task submitted, waiting confirmation...`})
       const tx = await task.wait()
       // Parse logs for TaskCreated
       let taskId = null;
@@ -198,16 +199,19 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
       setBackdrop({show: true, message: `Saving task...`})
       db.collection("users").doc(user.uid).
       collection("videoRenderingTasks").doc(taskId.toString()).set({
-        taskId: taskId.toString(),
+        id: taskId.toString(),
         taskName: formData.taskName,
         fileName: formData.fileName,
+        status: "queued",
         fileUrl: downloadUrl,
         frameFrom: parseInt(formData.frameFrom),
         frameTo: parseInt(formData.frameTo),
         os: formData.os,
         renderingSoftware: formData.renderingSoftware,
         selectedPlan: formData.selectedPlan,
-        status: "submitted",
+        reward: 50000000,
+        rewardCurrency: "USDC",
+        rewardFormatted: formatUnits(50000000n, 6),
         createdAt: new Date(),
       })
       handleClose()

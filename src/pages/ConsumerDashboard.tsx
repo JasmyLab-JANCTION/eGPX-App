@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Box, Typography, Button, Paper, Grid, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Divider, TextField, FormControlLabel, Switch, CircularProgress } from '@mui/material';
 import { ListChecks, BarChart3, Settings, Plus, Download, Check, CheckCircle } from 'lucide-react';
 import { COLORS } from '../theme/theme';
-import { mockTasks, mockBlockchainStats, mockUserProfile } from '../mockData';
+import {  mockBlockchainStats, mockUserProfile } from '../mockData';
 import DashboardLayout from '../components/DashboardLayout';
 import TaskSubmissionWizard from '../components/TaskSubmissionWizard';
+import { useVideoRenderingTasks } from '../hooks/useFirestoreData.js';
+import { formatUnits } from 'ethers';
 
 interface ConsumerDashboardProps {
   onRoleSwitch: () => void;
@@ -14,12 +16,13 @@ interface ConsumerDashboardProps {
 
 interface Task {
   id: string;
-  title: string;
+  taskName: string;
   status: string;
-  startFrame: number;
-  endFrame: number;
-  cost: number;
-  file?: string;
+  frameFrom: number;
+  frameTo: number;
+  reward: number;
+  rewardFormated: string;
+  fileName: string;
   submittedAt?: string;
   workersAssigned?: number;
   progress?: number;
@@ -44,6 +47,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [displayName, setDisplayName] = useState(mockUserProfile.name);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(mockUserProfile.twoFactorEnabled);
+  const { videoRenderingTasks, loading, error } = useVideoRenderingTasks(user?.uid);
 
   const menuItems = [
     { id: 'my-tasks', label: 'My Tasks', icon: ListChecks },
@@ -86,7 +90,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
               Task Completed
             </Typography>
             <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate, mt: 0.5 }}>
-              {selectedTask.title}
+              {selectedTask.taskName}
             </Typography>
           </DialogTitle>
           <DialogContent>
@@ -193,7 +197,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
               Task In Progress
             </Typography>
             <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate, mt: 0.5 }}>
-              {selectedTask.title}
+              {selectedTask.taskName}
             </Typography>
           </DialogTitle>
           <DialogContent>
@@ -307,7 +311,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
                       Active Tasks
                     </Typography>
                     <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
-                      {mockTasks.filter(t => t.status !== 'completed').length}
+                      {videoRenderingTasks.filter(t => t.status !== 'completed').length}
                     </Typography>
                   </Paper>
                 </Grid>
@@ -317,7 +321,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
                       Completed
                     </Typography>
                     <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
-                      {mockTasks.filter(t => t.status === 'completed').length}
+                      {videoRenderingTasks.filter(t => t.status === 'completed').length}
                     </Typography>
                   </Paper>
                 </Grid>
@@ -327,7 +331,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
                       Total Spent
                     </Typography>
                     <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
-                      ${mockTasks.reduce((sum, t) => sum + t.cost, 0).toLocaleString()}
+                      ${formatUnits( videoRenderingTasks.reduce((sum, t) => sum + t.reward, 0),6).toLocaleString()}
                     </Typography>
                   </Paper>
                 </Grid>
@@ -347,14 +351,14 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {mockTasks.map(task => (
+                    {videoRenderingTasks.map(task => (
                       <TableRow key={task.id} sx={{ '&:hover': { bgcolor: '#F8F9FA' } }}>
                         <TableCell>
-                          <Typography sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>{task.title}</Typography>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>{task.taskName}</Typography>
                         </TableCell>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate }}>
-                            {task.startFrame}-{task.endFrame}
+                            {task.frameFrom}-{task.frameTo}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -372,7 +376,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
                         </TableCell>
                         <TableCell>
                           <Typography sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                            ${task.cost.toLocaleString()}
+                            {task.rewardCurrency || "$"} {task.rewardFormatted || 0}
                           </Typography>
                         </TableCell>
                         <TableCell>
