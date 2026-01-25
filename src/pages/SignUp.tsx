@@ -1,40 +1,43 @@
-import { useState } from 'react';
 import { Box, Container, Paper, Typography, TextField, Button, Divider, Snackbar } from '@mui/material';
 import { Network, Mail } from 'lucide-react';
-import { COLORS } from '../theme/theme';
+import { COLORS } from '../theme/theme.js';
 import {useFirebaseAuth} from "../hooks/useFirebaseAuth.js"
+import { useState } from 'react';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import IconButton from '@mui/material/IconButton';
-
-interface SignInProps {
-  onSignIn: () => void;
-  onGoToSignUp: () => void;
+interface SignUpProps {
+  onSignUp: () => void;
+  onGoToSignIn: () => void;
 }
 
-export default function SignIn({ onSignIn, onGoToSignUp }: SignInProps) {
-  const [data, setData] = useState({email: "", password: "", error:"", showPassword: false});
-  const { signInWithGoogle, signInWithEmail } = useFirebaseAuth();
+export default function SignUp({ onSignUp, onGoToSignIn }: SignUpProps) {
+  const [data, setData] = useState({email: "", password: "", password2:"", error:"", showPassword: false, showPassword2: false});
+    const { signInWithGoogle, signUpWithEmail } = useFirebaseAuth();
+  
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await signInWithEmail( data.email, data.password ); // You might want to pass email and password here
-      onSignIn();
-    } catch (error) {
-      console.error(error)
-      setData({...data, error:"Failed to sign in. Please check your credentials."})
+      // password don't match
+      if (data.password !== data.password2) return;
+      if (data.password.length < 6) return;
+      try {
+        await signUpWithEmail( data.email, data.password ); // You might want to pass email and password here
+        onSignUp();
+      } catch (error) {
+        console.error(error)
+        setData({...data, error:"Failed to sign up. Please check your credentials."})
+      }
+    };
+  
+    const handleSignInWithGoogle = async () => {
+      try {
+        await signInWithGoogle()
+        onSignUp();
+      } catch (error) {
+        setData({...data, error:"Failed to sign up with Google."})
+      }
     }
-  };
-
-  const handleSignInWithGoogle = async () => {
-    try {
-      await signInWithGoogle()
-      onSignIn();
-    } catch (error) {
-      setData({...data, error:"Failed to sign in with Google."})
-    }
-  }
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', bgcolor: '#F8F9FA' }}>
@@ -49,7 +52,7 @@ export default function SignIn({ onSignIn, onGoToSignUp }: SignInProps) {
               </Typography>
             </Box>
             <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate, fontWeight: 500 }}>
-              Sign in to access your dashboard
+              Sign up to create your account
             </Typography>
           </Box>
 
@@ -67,24 +70,53 @@ export default function SignIn({ onSignIn, onGoToSignUp }: SignInProps) {
 
             <TextField
               fullWidth
+              label="Password"
               value={data.password}
               onChange={(e) => {setData({...data, password: e.target.value})}}
               slotProps={{
-            input: {
-              endAdornment: <IconButton
-                  aria-label={
-                    data.showPassword ? 'hide the password' : 'display the password'
-                  }
-                  onClick={() => setData({...data, showPassword: !data.showPassword})}
-                  
-                  edge="end"
-                >
-                  {data.showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>,
-            },
-          }}
-              label="Password"
+                input: {
+                  endAdornment: <IconButton
+                      aria-label={
+                        data.showPassword ? 'hide the password' : 'display the password'
+                      }
+                      onClick={() => setData({...data, showPassword: !data.showPassword})}
+                      
+                      edge="end"
+                    >
+                      {data.showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>,
+                },
+              }}
               type={data.showPassword ? "text" : "password"}
+              error={data.password.length<6 && data.password!=""}
+              helperText={data.password.length<6 && data.password!="" ? "Password must be at least 6 characters" : ""}
+              variant="outlined"
+              sx={{ mb: 3 }}
+              required
+            />
+
+            <TextField
+              fullWidth
+              label="Retype your password"
+              value={data.password2}
+              onChange={(e) => {setData({...data, password2: e.target.value})}}
+              slotProps={{
+                input: {
+                  endAdornment: <IconButton
+                      aria-label={
+                        data.showPassword2 ? 'hide the password' : 'display the password'
+                      }
+                      onClick={() => setData({...data, showPassword2: !data.showPassword2})}
+                      
+                      edge="end"
+                    >
+                      {data.showPassword2 ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>,
+                },
+              }}
+              type={data.showPassword2 ? "text" : "password"}
+              error={data.password !== data.password2}
+              helperText={data.password !== data.password2 ? "Passwords do not match" : ""}
               variant="outlined"
               sx={{ mb: 3 }}
               required
@@ -104,7 +136,7 @@ export default function SignIn({ onSignIn, onGoToSignUp }: SignInProps) {
                 mb: 2
               }}
             >
-              Sign In
+              Sign Up
             </Button>
 
             <Divider sx={{ my: 3 }}>
@@ -141,9 +173,9 @@ export default function SignIn({ onSignIn, onGoToSignUp }: SignInProps) {
 
           <Box sx={{ mt: 3, textAlign: 'center' }}>
             <Typography sx={{ fontSize: '0.8125rem', color: COLORS.slate }}>
-              Don't have an account?{' '}
-              <Box component="span" onClick={onGoToSignUp} sx={{ color: COLORS.navy, fontWeight: 600, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
-                Sign up
+              Already have an account?{' '}
+              <Box component="span" onClick={onGoToSignIn} sx={{ color: COLORS.navy, fontWeight: 600, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
+                Sign in
               </Box>
             </Typography>
           </Box>

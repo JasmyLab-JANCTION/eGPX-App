@@ -5,12 +5,13 @@ import { useState } from 'react';
 import { Box, CircularProgress } from '@mui/material';
 import Landing from './pages/Landing';
 import SignIn from './pages/SignIn';
+import SignUp from './pages/SignUp';
 import ConsumerDashboard from './pages/ConsumerDashboard';
 import WorkerDashboard from './pages/WorkerDashboard';
 import {useFirebaseAuth} from "./hooks/useFirebaseAuth.js"
 export default function App() {
   const {user, logout, loading: loadingAuth} = useFirebaseAuth()
-  const [currentView, setCurrentView] = useState<'landing' | 'signin' | 'dashboard'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'signin' | 'signup' | 'dashboard'>('landing');
   const [userRole, setUserRole] = useState<'consumer' | 'worker'>('consumer');
 
   const handleLaunchApp = () => {
@@ -22,19 +23,14 @@ export default function App() {
 
   };
 
-  // useEffect(() => {
-  //   if (loadingAuth) return;
-  //   if (user) {
-  //     setCurrentView('dashboard');
-  //   } else {
-  //     setCurrentView('signin');
-  //   }
-  // }, [user, loadingAuth])
-  
 
   const handleSignIn = () => {
     setCurrentView('dashboard');
   };
+
+  const handleSignUp = () => {
+    setCurrentView('dashboard');
+  }
 
   const handleRoleSwitch = () => {
     setUserRole(prev => prev === 'consumer' ? 'worker' : 'consumer');
@@ -54,7 +50,8 @@ export default function App() {
   return (
     <Box>
       {currentView === 'landing' && <Landing onLaunchApp={handleLaunchApp} />}
-      {currentView === 'signin' && <SignIn onSignIn={handleSignIn} />}
+      {currentView === 'signin' && <SignIn onSignIn={handleSignIn} onGoToSignUp={() => setCurrentView('signup')} />}
+      {currentView === 'signup' && <SignUp onSignUp={handleSignUp} onGoToSignIn={() => setCurrentView('signin')}/>}
       {currentView === 'dashboard' && userRole === 'consumer' && (
         <ConsumerDashboard onRoleSwitch={handleRoleSwitch} onLogout={handleLogout} user={user}/>
       )}
