@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, Button, Paper, Grid, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Divider, TextField, FormControlLabel, Switch, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, Paper, Grid, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Divider, TextField, FormControlLabel, Switch, CircularProgress, LinearProgress } from '@mui/material';
 import { ListChecks, BarChart3, Settings, Plus, Download, Check, CheckCircle } from 'lucide-react';
 import { COLORS } from '../theme/theme';
 import {  mockBlockchainStats, mockUserProfile } from '../mockData';
@@ -28,17 +28,12 @@ interface Task {
   progress?: number;
 }
 
-const generateMockAddresses = (count: number): string[] => {
-  const addresses = [];
-  for (let i = 0; i < count; i++) {
-    const prefix = '0x' + Math.random().toString(16).substring(2, 10);
-    const suffix = Math.random().toString(16).substring(2, 9);
-    addresses.push(`${prefix}...${suffix}`);
-  }
-  return addresses;
-};
 
-const generateRandomFrame = () => Math.floor(Math.random() * 240) + 1;
+
+const handleDownloadSolution = async (selectedTask) => {
+  console.log("download", selectedTask)
+}
+
 
 export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: ConsumerDashboardProps) {
   const [activeMenuItem, setActiveMenuItem] = useState('my-tasks');
@@ -77,11 +72,7 @@ console.log("videoRenderingTasks", videoRenderingTasks)
   const renderTaskDetailsDialog = () => {
     if (!selectedTask) return null;
 
-    if (selectedTask.status === 'completed') {
-      const verifierAddresses = generateMockAddresses(5);
-      const totalReward = 320;
-      const winnerReward = totalReward * 0.5;
-      const verifierReward = (totalReward * 0.5) / verifierAddresses.length;
+    if (selectedTask.status === 'COMPLETED') {
 
       return (
         <Dialog open={detailsDialogOpen} onClose={handleCloseDetails} maxWidth="sm" fullWidth>
@@ -104,10 +95,10 @@ console.log("videoRenderingTasks", videoRenderingTasks)
               <Paper sx={{ p: 2, bgcolor: COLORS.background, border: `1px solid ${COLORS.border}` }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography sx={{ fontFamily: 'monospace', fontSize: '0.9375rem', fontWeight: 600, color: COLORS.navy }}>
-                    0x2BFaadCa3...167e004
+                    {selectedTask.acceptedProposer}
                   </Typography>
                   <Chip
-                    label={`$${winnerReward.toFixed(0)}`}
+                    label={`$${formatUnits(selectedTask.reward /2, 6)}`}
                     size="small"
                     sx={{
                       bgcolor: `${COLORS.green}20`,
@@ -125,17 +116,17 @@ console.log("videoRenderingTasks", videoRenderingTasks)
 
             <Box>
               <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 2 }}>
-                Verifiers ({verifierAddresses.length} Nodes)
+                Verifiers ({selectedTask.workers.length} Nodes)
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {verifierAddresses.map((address, index) => (
+                {selectedTask.workers.map((verifier, index) => (
                   <Paper key={index} sx={{ p: 1.5, bgcolor: COLORS.background, border: `1px solid ${COLORS.border}` }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography sx={{ fontFamily: 'monospace', fontSize: '0.8125rem', color: COLORS.navy }}>
-                        {address}
+                        {verifier.address}
                       </Typography>
                       <Chip
-                        label={`$${verifierReward.toFixed(0)}`}
+                        label={`$${formatUnits(selectedTask.reward /2, 6)}`}
                         size="small"
                         sx={{
                           bgcolor: `${COLORS.blue}20`,
@@ -165,6 +156,7 @@ console.log("videoRenderingTasks", videoRenderingTasks)
             </Button>
             <Button
               startIcon={<Download size={18} />}
+              onClick={() => handleDownloadSolution(selectedTask)}
               sx={{
                 bgcolor: COLORS.navy,
                 color: COLORS.white,
@@ -176,7 +168,7 @@ console.log("videoRenderingTasks", videoRenderingTasks)
                 '&:hover': { bgcolor: COLORS.navyLight }
               }}
             >
-              Download Animation
+              Download Solution
             </Button>
           </DialogActions>
         </Dialog>
@@ -207,7 +199,7 @@ console.log("videoRenderingTasks", videoRenderingTasks)
                     <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <CircularProgress
                         variant="determinate"
-                        value={node.progress}
+                        value={node.progressPct}
                         size={36}
                         thickness={4}
                         sx={{ color: COLORS.gold }}
@@ -220,16 +212,17 @@ console.log("videoRenderingTasks", videoRenderingTasks)
                           color: COLORS.gold
                         }}
                       >
-                        {node.progressPct}%
+                        {`${node.progressPct}%`}
                       </Typography>
                     </Box>
                     <Box sx={{ flex: 1 }}>
+                      
                       <Typography sx={{ fontFamily: 'monospace', fontSize: '0.8125rem', fontWeight: 600, color: COLORS.navy }}>
                         {node.uid}
                       </Typography>
                     </Box>
                     <Chip
-                      label={`Rendered ${node.framesRendered}`}
+                      label={`Rendered ${node.framesRendered}/${node.totalFrames}`}
                       size="small"
                       sx={{
                         bgcolor: `${COLORS.gold}20`,
@@ -239,6 +232,11 @@ console.log("videoRenderingTasks", videoRenderingTasks)
                       }}
                     />
                   </Box>
+                  {node.status !=="DONE" && (
+                    <Box mt={2} sx={{ width: '100%' }}>
+                      <LinearProgress color='secondary'/>
+                  </Box>
+                  )}
                 </Paper>
               ))}
             </Box>
@@ -307,7 +305,7 @@ console.log("videoRenderingTasks", videoRenderingTasks)
                       Active Tasks
                     </Typography>
                     <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
-                      {videoRenderingTasks.filter(t => t.status !== 'completed').length}
+                      {videoRenderingTasks.filter(t => t.status !== 'COMPLETED').length}
                     </Typography>
                   </Paper>
                 </Grid>
@@ -317,7 +315,7 @@ console.log("videoRenderingTasks", videoRenderingTasks)
                       Completed
                     </Typography>
                     <Typography sx={{ fontFamily: 'monospace', fontSize: '2rem', fontWeight: 700, color: COLORS.navy }}>
-                      {videoRenderingTasks.filter(t => t.status === 'completed').length}
+                      {videoRenderingTasks.filter(t => t.status === 'COMPLETED').length}
                     </Typography>
                   </Paper>
                 </Grid>
