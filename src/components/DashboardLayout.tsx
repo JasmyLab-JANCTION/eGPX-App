@@ -2,7 +2,6 @@ import { ReactNode, useState } from 'react';
 import { Box, List, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton, Badge, Menu, MenuItem, Divider, Button } from '@mui/material';
 import { Network, Bell, Settings, CheckCircle2, Users, Shield } from 'lucide-react';
 import { COLORS } from '../theme/theme';
-import {useFirebaseAuth} from "../hooks/useFirebaseAuth.js"
 
 interface MenuItemType {
   id: string;
@@ -203,9 +202,6 @@ const [anchorEl, setAnchorEl] = useState(null);
             <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: COLORS.green }} />
             <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: COLORS.slate }}>
               System Operational
-            </Typography>
-            <Typography sx={{ fontSize: '0.75rem', color: COLORS.slate, ml: 2 }}>
-              v1.2 INSTITUTIONAL
             </Typography>
           </Box>
 

@@ -48,7 +48,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
   const [displayName, setDisplayName] = useState(mockUserProfile.name);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(mockUserProfile.twoFactorEnabled);
   const { videoRenderingTasks, loading, error } = useVideoRenderingTasks(user?.uid);
-
+console.log("videoRenderingTasks", videoRenderingTasks)
   const menuItems = [
     { id: 'my-tasks', label: 'My Tasks', icon: ListChecks },
     { id: 'network', label: 'Network', icon: BarChart3 },
@@ -59,7 +59,7 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
     switch (status) {
       case 'completed': return COLORS.green;
       case 'rendering': return COLORS.gold;
-      case 'queued': return COLORS.blue;
+      case 'open': return COLORS.blue;
       default: return COLORS.slate;
     }
   };
@@ -183,12 +183,8 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
       );
     }
 
-    if (selectedTask.status === 'rendering') {
-      const renderingNodes = Array.from({ length: 6 }, (_, i) => ({
-        address: generateMockAddresses(1)[0],
-        frame: generateRandomFrame(),
-        progress: Math.floor(Math.random() * 40) + 30
-      }));
+    if (selectedTask.status !== 'COMPLETED') {
+      const renderingNodes = selectedTask.workers
 
       return (
         <Dialog open={detailsDialogOpen} onClose={handleCloseDetails} maxWidth="sm" fullWidth>
@@ -224,16 +220,16 @@ export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: Cons
                           color: COLORS.gold
                         }}
                       >
-                        {node.progress}%
+                        {node.progressPct}%
                       </Typography>
                     </Box>
                     <Box sx={{ flex: 1 }}>
                       <Typography sx={{ fontFamily: 'monospace', fontSize: '0.8125rem', fontWeight: 600, color: COLORS.navy }}>
-                        {node.address}
+                        {node.uid}
                       </Typography>
                     </Box>
                     <Chip
-                      label={`Frame ${node.frame}`}
+                      label={`Rendered ${node.framesRendered}`}
                       size="small"
                       sx={{
                         bgcolor: `${COLORS.gold}20`,
