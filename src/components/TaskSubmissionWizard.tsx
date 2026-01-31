@@ -26,7 +26,7 @@ import {
 import { useAppKit, useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
 import { Upload, Cpu, Wallet, Check } from 'lucide-react';
 import { COLORS } from '../theme/theme';
-import { BrowserProvider, Contract, formatUnits, parseUnits } from 'ethers'
+import { BrowserProvider, Contract, formatUnits } from 'ethers'
 import stableABI from "../contracts/StableCoin.json"
 import VideoRenderingABI from "../contracts/VideoRenderTasks.json"
 import SimpleBackdrop from './SimpleBackdrop';
@@ -197,16 +197,17 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
       }
 
       setBackdrop({show: true, message: `Saving task...`})
-      db.collection("users").doc(user.uid).
-      collection("videoRenderingTasks").doc(taskId.toString()).set({
+      db.collection("videoRenderingTasks").doc(taskId.toString()).set({
         id: taskId.toString(),
         taskName: formData.taskName,
         fileName: formData.fileName,
-        status: "queued",
+        status: "open",
+        creator: user.uid,
         fileUrl: downloadUrl,
         frameFrom: parseInt(formData.frameFrom),
         frameTo: parseInt(formData.frameTo),
         os: formData.os,
+        profile: "0x3100000000000000000000000000000000000000000000000000000000000000",
         renderingSoftware: formData.renderingSoftware,
         selectedPlan: formData.selectedPlan,
         reward: 50000000,
@@ -307,7 +308,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
               </Paper>
 
               <Grid container spacing={3}>
-                <Grid item xs={6}>
+                <Grid size={{xs:6}}>
                   <TextField
                     label="From Frame"
                     type="number"
@@ -317,7 +318,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                     inputProps={{ min: 1 }}
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={{xs:6}}>
                   <TextField
                     label="To Frame"
                     type="number"
@@ -352,22 +353,23 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                   onChange={(e) => setFormData({ ...formData, os: e.target.value })}
                 >
                   <Grid container spacing={2}>
-                    <Grid item xs={6} sm={3}>
+                    
+                    <Grid size={{xs:6,sm:3}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="windows" control={<Radio />} disabled label="Windows" />
                       </Paper>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{xs:6,sm:3}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="mac" control={<Radio />} disabled label="Mac" />
                       </Paper>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{xs:6,sm:3}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="linux" control={<Radio />} label="Linux" />
                       </Paper>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{xs:6,sm:3}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="any" control={<Radio />} disabled label="Any" />
                       </Paper>
@@ -385,22 +387,22 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                   onChange={(e) => setFormData({ ...formData, renderingSoftware: e.target.value })}
                 >
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid size={{xs:6}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="blender" control={<Radio />} label="Blender" />
                       </Paper>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={{xs:6}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="corona" control={<Radio />} disabled label="Chaos Corona" />
                       </Paper>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={{xs:6}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="redshift" control={<Radio />} disabled label="Redshift" />
                       </Paper>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={{xs:6}}>
                       <Paper sx={{ p: 2 }}>
                         <FormControlLabel value="vray" control={<Radio />} disabled label="V-Ray" />
                       </Paper>
@@ -459,7 +461,8 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
 
               <Grid container spacing={2} sx={{ mb: 3 }}>
                 {pricingOptions.map((option) => (
-                  <Grid item xs={12} md={4} key={option.id}>
+                  
+                  <Grid size={{xs:12, md:4}} key={option.id}>
                     <Paper
                       sx={{
                         p: 3,
