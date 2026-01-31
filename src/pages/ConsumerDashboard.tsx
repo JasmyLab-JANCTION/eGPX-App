@@ -166,10 +166,14 @@ console.log("videoRenderingTasks", videoRenderingTasks)
                 textTransform: 'none',
                 fontSize: '0.875rem',
                 fontWeight: 600,
-                '&:hover': { bgcolor: COLORS.navyLight }
+                '&:hover': { bgcolor: COLORS.navyLight },
+                "&.Mui-disabled": {
+                  background: "#f0f0f0", // Custom background color
+                  color: "#9e9e9e" // Custom text color
+                }
               }}
             >
-              Download Solution
+              {!selectedTask.solutionZip || selectedTask.solutionZip.status !== "ready" ? "Generating Zip..." : "Download Solution"}
             </Button>
           </DialogActions>
         </Dialog>

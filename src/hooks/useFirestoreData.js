@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 // TODO: Uncomment this import and point to your Firebase config
 import { db } from "../config/firebase";
@@ -13,22 +13,16 @@ import {
   collectionGroup,
 } from "firebase/firestore";
 
-/**
- * useVideoRenderingTasks(userId)
- * - Subscribes to tasks created by user
- * - For each task, subscribes to its workers subcollection
- * - Returns tasks with `workers` array (live updates)
- */
 export const useVideoRenderingTasks = (userId) => {
-  const [videoRenderingTasks, setVideoRenderingTasks] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [workersByTaskId, setWorkersByTaskId] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // taskId -> unsubscribe function for its workers listener
+  // taskId -> unsubscribe
   const workersUnsubsRef = useRef(new Map());
 
   useEffect(() => {
-    // cleanup all workers listeners on unmount / user change
     const cleanupAllWorkers = () => {
       for (const unsub of workersUnsubsRef.current.values()) {
         try {
@@ -36,11 +30,12 @@ export const useVideoRenderingTasks = (userId) => {
         } catch {}
       }
       workersUnsubsRef.current.clear();
+      setWorkersByTaskId({});
     };
 
     if (!userId) {
       cleanupAllWorkers();
-      setVideoRenderingTasks([]);
+      setTasks([]);
       setLoading(false);
       return;
     }
@@ -51,37 +46,43 @@ export const useVideoRenderingTasks = (userId) => {
     const q = query(
       collection(db, "videoRenderingTasks"),
       where("creator", "==", userId),
+      // orderBy("createdAt", "desc"), // optional but recommended if you have it
     );
 
     const unsubscribeTasks = onSnapshot(
       q,
       (snapshot) => {
-        const tasks = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          workers: [], // will be filled by sub-listener
+        const nextTasks = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
         }));
 
-        const currentTaskIds = new Set(tasks.map((t) => t.id));
+        const currentTaskIds = new Set(nextTasks.map((t) => t.id));
 
-        // 1) Unsubscribe workers listeners for tasks that disappeared
+        // remove worker listeners + workers state for tasks that disappeared
         for (const [taskId, unsub] of workersUnsubsRef.current.entries()) {
           if (!currentTaskIds.has(taskId)) {
             try {
               unsub();
             } catch {}
             workersUnsubsRef.current.delete(taskId);
+
+            setWorkersByTaskId((prev) => {
+              const copy = { ...prev };
+              delete copy[taskId];
+              return copy;
+            });
           }
         }
 
-        // 2) Ensure there is a workers listener for each task
-        tasks.forEach((task) => {
-          if (workersUnsubsRef.current.has(task.id)) return;
+        // ensure a workers listener for each task
+        for (const t of nextTasks) {
+          if (workersUnsubsRef.current.has(t.id)) continue;
 
           const workersCol = collection(
             db,
             "videoRenderingTasks",
-            task.id,
+            t.id,
             "workers",
           );
 
@@ -89,39 +90,29 @@ export const useVideoRenderingTasks = (userId) => {
             workersCol,
             (workersSnap) => {
               const workers = workersSnap.docs.map((w) => ({
-                id: w.id, // address
+                id: w.id,
                 ...w.data(),
               }));
 
-              // merge workers into that single task
-              setVideoRenderingTasks((prev) =>
-                prev.map((t) => (t.id === task.id ? { ...t, workers } : t)),
-              );
+              setWorkersByTaskId((prev) => ({
+                ...prev,
+                [t.id]: workers,
+              }));
             },
             (err) => {
-              // workers listener error should not kill tasks
-              console.error("workers snapshot error", task.id, err);
+              console.error("workers snapshot error", t.id, err);
             },
           );
 
-          workersUnsubsRef.current.set(task.id, unsubWorkers);
-        });
+          workersUnsubsRef.current.set(t.id, unsubWorkers);
+        }
 
-        // 3) Set tasks list (workers will populate async)
-        setVideoRenderingTasks((prev) => {
-          // Preserve any already-fetched workers arrays when possible
-          const prevById = new Map(prev.map((t) => [t.id, t]));
-          return tasks.map((t) => ({
-            ...t,
-            workers: prevById.get(t.id)?.workers ?? t.workers,
-          }));
-        });
-
+        setTasks(nextTasks);
         setLoading(false);
       },
       (err) => {
         cleanupAllWorkers();
-        setError(err.message);
+        setError(err.message || String(err));
         setLoading(false);
       },
     );
@@ -133,6 +124,14 @@ export const useVideoRenderingTasks = (userId) => {
       cleanupAllWorkers();
     };
   }, [userId]);
+
+  // derive final array with workers injected
+  const videoRenderingTasks = useMemo(() => {
+    return tasks.map((t) => ({
+      ...t,
+      workers: workersByTaskId[t.id] ?? [],
+    }));
+  }, [tasks, workersByTaskId]);
 
   return { videoRenderingTasks, loading, error };
 };
