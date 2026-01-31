@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, Button, Paper, Grid, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Divider, TextField, FormControlLabel, Switch, CircularProgress, LinearProgress } from '@mui/material';
+import { Box, Typography, Button, Paper, Grid, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Divider, TextField, FormControlLabel, Switch, CircularProgress, LinearProgress, Link } from '@mui/material';
 import { ListChecks, BarChart3, Settings, Plus, Download, Check, CheckCircle } from 'lucide-react';
 import { COLORS } from '../theme/theme';
 import {  mockBlockchainStats, mockUserProfile } from '../mockData';
@@ -30,9 +30,7 @@ interface Task {
 
 
 
-const handleDownloadSolution = async (selectedTask) => {
-  console.log("download", selectedTask)
-}
+
 
 
 export default function ConsumerDashboard({ onRoleSwitch, onLogout, user }: ConsumerDashboardProps) {
@@ -156,7 +154,10 @@ console.log("videoRenderingTasks", videoRenderingTasks)
             </Button>
             <Button
               startIcon={<Download size={18} />}
-              onClick={() => handleDownloadSolution(selectedTask)}
+              LinkComponent={Link}
+              href={selectedTask.solutionZip?.url}
+              underline="none"
+              disabled={!selectedTask.solutionZip || selectedTask.solutionZip.status !== "ready"}
               sx={{
                 bgcolor: COLORS.navy,
                 color: COLORS.white,
