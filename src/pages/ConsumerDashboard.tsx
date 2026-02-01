@@ -50,9 +50,11 @@ console.log("videoRenderingTasks", videoRenderingTasks)
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return COLORS.green;
-      case 'rendering': return COLORS.gold;
-      case 'open': return COLORS.blue;
+      case 'COMPLETED': return COLORS.green;
+      case 'RENDERING': return COLORS.gold;
+      case "SOLUTION_PROPOSED": return COLORS.navyLight;
+      case "navyLight": return COLORS.amber;
+      case 'Open': return COLORS.blue;
       default: return COLORS.slate;
     }
   };

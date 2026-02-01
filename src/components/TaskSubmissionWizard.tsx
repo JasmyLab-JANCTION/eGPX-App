@@ -558,7 +558,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={!formData.walletConnected}
+            disabled={!isConnected}
             sx={{
               bgcolor: COLORS.gold,
               color: COLORS.navy,
