@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Typography, Button, Paper, Grid, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Divider, TextField, FormControlLabel, Switch, CircularProgress, LinearProgress, Link } from '@mui/material';
 import { ListChecks, BarChart3, Settings, Plus, Download, Check, CheckCircle } from 'lucide-react';
 import { COLORS } from '../theme/theme';
@@ -56,6 +56,13 @@ console.log("videoRenderingTasks", videoRenderingTasks)
       default: return COLORS.slate;
     }
   };
+
+  useEffect(() => {
+    if (selectedTask){
+      setSelectedTask(current => (videoRenderingTasks.find(val => val.id === current.id) ))
+    }
+  }, [videoRenderingTasks])
+  
 
   const handleViewDetails = (task: Task) => {
     setSelectedTask(task);
