@@ -524,7 +524,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
                       },
                     }}
                   >
-                    Connect Wallet (MetaMask)
+                    Connect Wallet
                   </Button>
                 ) : (
                   <Alert severity="success">
