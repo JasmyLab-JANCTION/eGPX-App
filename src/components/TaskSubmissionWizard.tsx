@@ -110,11 +110,13 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   };
 
   const handleConnectWallet = () => {
+    if (isConnected) return
     openWallet()
   };
 
   const handleClose = () => {
     setFormData(initialState)
+    setActiveStep(0)
     onClose()
   }
 
@@ -507,7 +509,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
               </Grid>
 
               <Box sx={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
-                {!formData.walletConnected ? (
+                {!isConnected ? (
                   <Button
                     variant="outlined"
                     size="large"
