@@ -179,7 +179,8 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   
       setBackdrop({show: true, message: `Sign video rendering task submittion in your wallet...`})
       const VideoRenderingContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, VideoRenderingABI.abi, signer);
-      const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 50000000);
+      // hardcoding to only 2 threads for now
+      const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 2, 50000000);
       setBackdrop({show: true, message: `Task submitted, waiting confirmation...`})
       const tx = await task.wait()
       // Parse logs for TaskCreated
