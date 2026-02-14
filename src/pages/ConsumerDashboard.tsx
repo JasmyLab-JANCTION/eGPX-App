@@ -107,7 +107,7 @@ export default function ConsumerDashboard({
   ];
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toUpperCase()) {
       case "COMPLETED":
         return COLORS.green;
       case "RENDERING":
