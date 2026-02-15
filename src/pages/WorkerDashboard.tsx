@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Box, Typography, Paper, Grid, Switch, FormControlLabel, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress, Divider, MenuItem, Select } from '@mui/material';
-import { Award, Coins, Settings, BarChart3, Sliders, Star, TrendingUp, CheckCircle, XCircle, Wallet } from 'lucide-react';
+import { Box, Typography, Paper, Grid, Switch, FormControlLabel, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress, Divider } from '@mui/material';
+import { Award, Coins, Settings, BarChart3, Sliders, Star, TrendingUp, CheckCircle } from 'lucide-react';
 import { COLORS } from '../theme/theme';
 import { mockUserProfile, mockBlockchainStats } from '../mockData';
 import DashboardLayout from '../components/DashboardLayout';
+import WorkerConfigurationTab from '../components/WorkerConfigurationTab';
 
 interface WorkerDashboardProps {
   onRoleSwitch: () => void;
@@ -15,10 +16,6 @@ export default function WorkerDashboard({ onRoleSwitch, onLogout, user }: Worker
   const [activeMenuItem, setActiveMenuItem] = useState('dashboard');
   const [displayName, setDisplayName] = useState(mockUserProfile.name);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(mockUserProfile.twoFactorEnabled);
-  const [selectedOS, setSelectedOS] = useState('linux');
-  const [selectedSoftware, setSelectedSoftware] = useState('blender');
-  const [minReward, setMinReward] = useState('50');
-  const [walletConnected, setWalletConnected] = useState(false);
   const stats = mockUserProfile;
 
   const earningsData = [
@@ -31,16 +28,6 @@ export default function WorkerDashboard({ onRoleSwitch, onLogout, user }: Worker
   ];
 
   const maxEarnings = Math.max(...earningsData.map(d => d.amount));
-
-  const generateDockerImageName = () => {
-    const softwareVersions: Record<string, string> = {
-      blender: 'blender-4.3-cycles',
-      'v-ray': 'vray-6.2',
-      lumion: 'lumion-12.5',
-      unreal: 'unreal-5.3'
-    };
-    return `${selectedOS}-${softwareVersions[selectedSoftware]}:latest`;
-  };
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -289,153 +276,7 @@ export default function WorkerDashboard({ onRoleSwitch, onLogout, user }: Worker
         );
 
       case 'configuration':
-        return (
-          <Box>
-            <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '2rem', fontWeight: 700, color: COLORS.navy, mb: 1 }}>
-              Configuration
-            </Typography>
-            <Typography sx={{ fontSize: '0.9375rem', color: COLORS.slate, mb: 4 }}>
-              Configure your worker node and download the container image
-            </Typography>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <Paper sx={{ p: 4 }}>
-                  <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: COLORS.navy, mb: 3 }}>
-                    Worker Configuration
-                  </Typography>
-
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={4}>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
-                        Operating System
-                      </Typography>
-                      <Select
-                        fullWidth
-                        value={selectedOS}
-                        onChange={(e) => setSelectedOS(e.target.value)}
-                        size="small"
-                      >
-                        <MenuItem value="linux">Linux</MenuItem>
-                        <MenuItem value="mac">Mac</MenuItem>
-                        <MenuItem value="windows">Windows</MenuItem>
-                      </Select>
-                    </Grid>
-
-                    <Grid item xs={12} md={4}>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
-                        Rendering Software
-                      </Typography>
-                      <Select
-                        fullWidth
-                        value={selectedSoftware}
-                        onChange={(e) => setSelectedSoftware(e.target.value)}
-                        size="small"
-                      >
-                        <MenuItem value="blender">Blender</MenuItem>
-                        <MenuItem value="v-ray">V-Ray</MenuItem>
-                        <MenuItem value="lumion">Lumion</MenuItem>
-                        <MenuItem value="unreal">Unreal</MenuItem>
-                      </Select>
-                    </Grid>
-
-                    <Grid item xs={12} md={4}>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
-                        Minimum Reward (USD)
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        value={minReward}
-                        onChange={(e) => setMinReward(e.target.value)}
-                        size="small"
-                        type="number"
-                      />
-                    </Grid>
-                  </Grid>
-
-                  <Divider sx={{ my: 4 }} />
-
-                  <Box sx={{ mb: 3 }}>
-                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: COLORS.navy, mb: 2 }}>
-                      Docker Image
-                    </Typography>
-                    <Box sx={{ p: 2, bgcolor: '#F8F9FA', borderRadius: 1, border: '1px solid #E5E7EB' }}>
-                      <Typography sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                        {generateDockerImageName()}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Button
-                    fullWidth
-                    startIcon={walletConnected ? undefined : <Wallet size={20} />}
-                    onClick={() => setWalletConnected(!walletConnected)}
-                    sx={{
-                      bgcolor: walletConnected ? COLORS.green : COLORS.navy,
-                      color: COLORS.white,
-                      py: 1.5,
-                      textTransform: 'none',
-                      fontSize: '0.9375rem',
-                      fontWeight: 600,
-                      '&:hover': { bgcolor: walletConnected ? '#059669' : '#0a1628' }
-                    }}
-                  >
-                    {walletConnected ? 'Submit Configuration' : 'Connect Wallet'}
-                  </Button>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Paper sx={{ p: 4, bgcolor: '#F8F9FA' }}>
-                  <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: COLORS.navy, mb: 3 }}>
-                    Container Instructions
-                  </Typography>
-
-                  <Typography sx={{ fontSize: '0.875rem', color: COLORS.slate, mb: 2 }}>
-                    Run the following command to start your worker node:
-                  </Typography>
-
-                  <Box sx={{ p: 3, bgcolor: '#1e293b', borderRadius: 1, overflow: 'auto' }}>
-                    <Typography sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#e2e8f0', whiteSpace: 'pre' }}>
-{`docker run -it --rm \\
-  --name janction-video-worker \\
-  -e WS_RPC_URL="YourRPCProvider" \\
-  -e PRIVATE_KEY="YourPrivateKey" \\
-  -e VIDEO_RENDER_TASKS_ADDRESS="0x10d63b86Bc223f097E2E689651C3499c84FC8681" \\
-  -e MODULE_MANAGER_ADDRESS="0x8257062618E59a0FB716D1cB31441625Ef6E1Bd7" \\
-  -e WORKER_REGISTRY_ADDRESS="0xb25E0BC520F9e9AD0B9e153115c322cC319368d1" \\
-  -e CONFIG_ID="0x3100000000000000000000000000000000000000000000000000000000000000" \\
-  -v $(pwd)/worker-data:/data \\
-  ${generateDockerImageName()}`}
-                    </Typography>
-                  </Box>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Paper sx={{ p: 4 }}>
-                  <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: COLORS.navy, mb: 3 }}>
-                    Worker Status
-                  </Typography>
-
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 3, bgcolor: `${COLORS.gold}15`, borderRadius: 1, border: `2px solid ${COLORS.gold}` }}>
-                    <Typography sx={{ fontSize: '2rem' }}>
-                      ⏳
-                    </Typography>
-                    <Box>
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 0.5 }}>
-                        Current Status
-                      </Typography>
-                      <Typography sx={{ fontSize: '1.125rem', fontWeight: 700, color: COLORS.gold }}>
-                        Active and Waiting for Task
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Paper>
-              </Grid>
-            </Grid>
-          </Box>
-        );
+        return <WorkerConfigurationTab userId={(user as any).uid} />;
 
       case 'reputation':
         return (
