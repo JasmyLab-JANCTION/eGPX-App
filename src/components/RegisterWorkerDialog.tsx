@@ -15,7 +15,7 @@ import {
   useAppKitAccount,
   useAppKitProvider,
 } from "@reown/appkit/react";
-import { BrowserProvider, Contract } from "ethers";
+import { BrowserProvider, Contract, Eip1193Provider } from "ethers";
 import { Wallet, X } from "lucide-react";
 import { COLORS } from "../theme/theme";
 import SimpleBackdrop from "./SimpleBackdrop";
@@ -63,7 +63,7 @@ export default function RegisterWorkerDialog({
     setError(null);
     try {
       await onRegister(address.toLowerCase());
-      const ethersProvider = new BrowserProvider(walletProvider as any);
+      const ethersProvider = new BrowserProvider(walletProvider as Eip1193Provider);
       const signer = await ethersProvider.getSigner();
       const workerRegistry = new Contract(
         WORKER_REGISTRY_ADDRESS,

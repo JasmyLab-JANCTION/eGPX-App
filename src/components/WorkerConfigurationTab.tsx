@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -18,7 +18,26 @@ import { Wallet, Plus, Server, Copy, Check } from "lucide-react";
 import { COLORS } from "../theme/theme";
 import { useWorkers } from "../hooks/useWorkers";
 import RegisterWorkerDialog from "./RegisterWorkerDialog";
-import { useDisconnect } from "@reown/appkit/react";
+import { useAppKitProvider, useDisconnect } from "@reown/appkit/react";
+import {
+  BrowserProvider,
+  Contract,
+  Eip1193Provider,
+  formatUnits,
+  parseUnits,
+} from "ethers";
+import WorkerRegistryABI from "../contracts/WorkerRegistry.json";
+import StableCoinABI from "../contracts/StableCoin.json";
+import SimpleBackdrop from "./SimpleBackdrop";
+
+const WORKER_REGISTRY_ADDRESS = import.meta.env
+  .VITE_BLOCKCHAIN_WORKER_REGISTRY_ADDRESS;
+const USDC_CONTRACT_ADDRESS = import.meta.env
+  .VITE_BLOCKCHAIN_USDC_CONTRACT_ADDRESS;
+const CONFIG_ID =
+  "0x3100000000000000000000000000000000000000000000000000000000000000";
+const MODULE_KEY =
+  "0x0735c5123c545fb1079b2c831758b7fd7801678d4bdd0a16d4c8d420a26a8c53";
 
 interface WorkerConfigurationTabProps {
   userId: string;
@@ -59,11 +78,11 @@ export default function WorkerConfigurationTab({
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
   const { disconnect } = useDisconnect();
+  const { walletProvider } = useAppKitProvider("eip155");
+
   // Form state for selected worker
   const [editOS, setEditOS] = useState("linux");
   const [editSoftware, setEditSoftware] = useState("blender");
-  const [editMinReward, setEditMinReward] = useState("50");
-  const [editStake, setEditStake] = useState("0");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [snackbar, setSnackbar] = useState<{
@@ -71,6 +90,18 @@ export default function WorkerConfigurationTab({
     message: string;
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
+
+  // On-chain state
+  const [onChainMinReward, setOnChainMinReward] = useState<string | null>(null);
+  const [onChainStake, setOnChainStake] = useState<string | null>(null);
+  const [loadingOnChain, setLoadingOnChain] = useState(false);
+
+  // Edit state for reward & stake
+  const [editMinReward, setEditMinReward] = useState("");
+  const [editStake, setEditStake] = useState("");
+  const [savingReward, setSavingReward] = useState(false);
+  const [savingStake, setSavingStake] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
 
   const selectedWorker = workers.find(
     (w: any) => w.address === selectedAddress,
@@ -88,20 +119,69 @@ export default function WorkerConfigurationTab({
     if (selectedWorker) {
       setEditOS(selectedWorker.os || "linux");
       setEditSoftware(selectedWorker.renderingSoftware || "blender");
-      setEditMinReward(String(selectedWorker.minReward ?? "50"));
-      setEditStake(String(selectedWorker.stake ?? "0"));
     }
   }, [selectedAddress, selectedWorker?.address]);
 
+  // Fetch on-chain min reward and stake for the selected worker
+  const fetchOnChainData = useCallback(async () => {
+    if (!selectedAddress || !walletProvider) return;
+    setLoadingOnChain(true);
+    try {
+      const ethersProvider = new BrowserProvider(
+        walletProvider as Eip1193Provider,
+      );
+      const workerRegistry = new Contract(
+        WORKER_REGISTRY_ADDRESS,
+        WorkerRegistryABI.abi,
+        ethersProvider,
+      );
+
+      const [minReward, stake] = await Promise.all([
+        workerRegistry.getMinReward(selectedAddress, MODULE_KEY),
+        workerRegistry.stakeOf(selectedAddress),
+      ]);
+
+      const rewardFormatted = formatUnits(minReward, 6);
+      const stakeFormatted = formatUnits(stake, 6);
+      setOnChainMinReward(rewardFormatted);
+      setOnChainStake(stakeFormatted);
+      setEditMinReward(rewardFormatted);
+      setEditStake(stakeFormatted);
+    } catch (err) {
+      console.error("Failed to fetch on-chain data:", err);
+      setOnChainMinReward(null);
+      setOnChainStake(null);
+    } finally {
+      setLoadingOnChain(false);
+    }
+  }, [selectedAddress, walletProvider]);
+
+  useEffect(() => {
+    fetchOnChainData();
+  }, [fetchOnChainData]);
+
   const handleSaveConfig = async () => {
-    if (!selectedAddress) return;
+    if (!selectedAddress || !walletProvider) return;
     setSaving(true);
     try {
+      const ethersProvider = new BrowserProvider(
+        walletProvider as Eip1193Provider,
+      );
+      const signer = await ethersProvider.getSigner();
+      const workerRegistry = new Contract(
+        WORKER_REGISTRY_ADDRESS,
+        WorkerRegistryABI.abi,
+        signer,
+      );
+
+      setStatusMessage("Sign configuration submission in your wallet...");
+      const configTx = await workerRegistry.addConfiguration(CONFIG_ID);
+      setStatusMessage("Waiting for configuration confirmation...");
+      await configTx.wait();
+
       await updateWorker(selectedAddress, {
         os: editOS,
         renderingSoftware: editSoftware,
-        minReward: parseFloat(editMinReward) || 0,
-        stake: parseFloat(editStake) || 0,
       });
       setSnackbar({
         open: true,
@@ -111,11 +191,120 @@ export default function WorkerConfigurationTab({
     } catch (err: any) {
       setSnackbar({
         open: true,
-        message: err.message || "Failed to save",
+        message: err.reason || err.message || "Failed to save",
         severity: "error",
       });
     } finally {
       setSaving(false);
+      setStatusMessage("");
+    }
+  };
+
+  const handleSetMinReward = async () => {
+    if (!selectedAddress || !walletProvider) return;
+    const amount = parseFloat(editMinReward);
+    if (isNaN(amount) || amount <= 0) {
+      setSnackbar({
+        open: true,
+        message: "Enter a valid reward amount",
+        severity: "error",
+      });
+      return;
+    }
+    setSavingReward(true);
+    try {
+      const ethersProvider = new BrowserProvider(
+        walletProvider as Eip1193Provider,
+      );
+      const signer = await ethersProvider.getSigner();
+      const workerRegistry = new Contract(
+        WORKER_REGISTRY_ADDRESS,
+        WorkerRegistryABI.abi,
+        signer,
+      );
+
+      const amountParsed = parseUnits(editMinReward, 6);
+      setStatusMessage("Sign minimum reward transaction in your wallet...");
+      const tx = await workerRegistry.setMinReward(MODULE_KEY, amountParsed);
+      setStatusMessage("Waiting for confirmation...");
+      await tx.wait();
+
+      await fetchOnChainData();
+      setSnackbar({
+        open: true,
+        message: "Minimum reward updated",
+        severity: "success",
+      });
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.reason || err.message || "Failed to set reward",
+        severity: "error",
+      });
+    } finally {
+      setSavingReward(false);
+      setStatusMessage("");
+    }
+  };
+
+  const handleStake = async () => {
+    if (!selectedAddress || !walletProvider) return;
+    const amount = parseFloat(editStake);
+    if (isNaN(amount) || amount <= 0) {
+      setSnackbar({
+        open: true,
+        message: "Enter a valid stake amount",
+        severity: "error",
+      });
+      return;
+    }
+    setSavingStake(true);
+    try {
+      const ethersProvider = new BrowserProvider(
+        walletProvider as Eip1193Provider,
+      );
+      const signer = await ethersProvider.getSigner();
+      const workerRegistry = new Contract(
+        WORKER_REGISTRY_ADDRESS,
+        WorkerRegistryABI.abi,
+        signer,
+      );
+      const usdcContract = new Contract(
+        USDC_CONTRACT_ADDRESS,
+        StableCoinABI.abi,
+        signer,
+      );
+
+      const amountParsed = parseUnits(editStake, 6);
+
+      setStatusMessage("Approve USDC transfer in your wallet...");
+      const approveTx = await usdcContract.approve(
+        WORKER_REGISTRY_ADDRESS,
+        amountParsed,
+      );
+      setStatusMessage("Waiting for approval confirmation...");
+      await approveTx.wait();
+
+      setStatusMessage("Sign staking transaction in your wallet...");
+      const stakeTx = await workerRegistry.stake(amountParsed);
+      setStatusMessage("Waiting for staking confirmation...");
+      await stakeTx.wait();
+
+      await fetchOnChainData();
+      setSnackbar({
+        open: true,
+        message: "Stake updated",
+        severity: "success",
+      });
+    } catch (err: any) {
+      setSnackbar({
+        open: true,
+        message: err.reason || err.message || "Failed to stake",
+        severity: "error",
+      });
+    } finally {
+      setSavingStake(false);
+      setStatusMessage("");
     }
   };
 
@@ -131,9 +320,16 @@ export default function WorkerConfigurationTab({
 
   const dockerImage = generateDockerImageName(editOS, editSoftware);
 
-  const dockerCommand = `docker run -it --rm \\
+  const dockerCommand = `
+  # Download the latest worker image
+  docker pull rodrigoa77/egpx-videorendering:linux-blender-cycles-4.1-cpu
+  
+  # Run the worker
+  docker run -it --rm \\
   --name janction-worker-${selectedAddress ? selectedAddress.slice(2, 8).toLowerCase() : "node"} \\
-  -e AUTH_API_URL="YourHttpRPCProvider" \\
+  -e AUTH_API_URL="https://egpx-api.onrender.com" \
+  -e HTTP_RPC_URL="YourHttpRPCProvider" \\
+  -e HTTP_RPC_URL="YourHttpRPCProvider" \\
   -e WS_RPC_URL="YourWsRPCProvider" \\
   -e PRIVATE_KEY="YourPrivateKey" \\
   -e VIDEO_RENDER_TASKS_ADDRESS="${import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS}" \\
@@ -149,8 +345,7 @@ export default function WorkerConfigurationTab({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const status =
-    statusConfig[selectedWorker?.status] || statusConfig.registered;
+  const isBusy = saving || savingReward || savingStake;
 
   if (loading) {
     return (
@@ -169,6 +364,8 @@ export default function WorkerConfigurationTab({
 
   return (
     <Box>
+      <SimpleBackdrop open={isBusy} message={statusMessage} />
+
       <Typography
         sx={{
           fontFamily: '"Playfair Display", serif',
@@ -332,8 +529,22 @@ export default function WorkerConfigurationTab({
                 </Typography>
               </Box>
 
+              <Typography
+                sx={{
+                  fontSize: "0.8125rem",
+                  color: COLORS.slate,
+                  mb: 3,
+                  lineHeight: 1.6,
+                }}
+              >
+                Select the OS and rendering software that matches the machine
+                where this worker will run. This determines the Docker image
+                used and which tasks the worker is eligible for — task creators
+                can target specific configurations (e.g. Linux + Blender only).
+              </Typography>
+
               <Grid container spacing={3}>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={6}>
                   <Typography
                     sx={{
                       fontSize: "0.75rem",
@@ -358,7 +569,7 @@ export default function WorkerConfigurationTab({
                   </Select>
                 </Grid>
 
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={6}>
                   <Typography
                     sx={{
                       fontSize: "0.75rem",
@@ -382,50 +593,6 @@ export default function WorkerConfigurationTab({
                     <MenuItem value="lumion">Lumion</MenuItem>
                     <MenuItem value="unreal">Unreal</MenuItem>
                   </Select>
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <Typography
-                    sx={{
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: COLORS.slate,
-                      mb: 1,
-                    }}
-                  >
-                    Minimum Reward (USD)
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={editMinReward}
-                    onChange={(e) => setEditMinReward(e.target.value)}
-                    size="small"
-                    type="number"
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <Typography
-                    sx={{
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: COLORS.slate,
-                      mb: 1,
-                    }}
-                  >
-                    Stake (JCT)
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    value={editStake}
-                    onChange={(e) => setEditStake(e.target.value)}
-                    size="small"
-                    type="number"
-                  />
                 </Grid>
               </Grid>
 
@@ -478,6 +645,208 @@ export default function WorkerConfigurationTab({
             </Paper>
           </Grid>
 
+          {/* Minimum Reward */}
+          <Grid item xs={12}>
+            <Paper sx={{ p: 4 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mb: 3,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "1.125rem",
+                    fontWeight: 600,
+                    color: COLORS.navy,
+                  }}
+                >
+                  Minimum Reward
+                </Typography>
+                {loadingOnChain ? (
+                  <CircularProgress size={16} sx={{ color: COLORS.slate }} />
+                ) : (
+                  <Typography
+                    sx={{
+                      fontSize: "0.875rem",
+                      color: COLORS.slate,
+                    }}
+                  >
+                    Current:{" "}
+                    <strong>
+                      {onChainMinReward !== null
+                        ? `${onChainMinReward} USDC`
+                        : "—"}
+                    </strong>
+                  </Typography>
+                )}
+              </Box>
+
+              <Typography
+                sx={{
+                  fontSize: "0.8125rem",
+                  color: COLORS.slate,
+                  mb: 3,
+                  lineHeight: 1.6,
+                }}
+              >
+                Set the minimum amount of USDC you are willing to accept per
+                task. Your worker will only be assigned tasks whose reward meets
+                or exceeds this threshold.
+              </Typography>
+
+              <Grid container spacing={3} alignItems="flex-end">
+                <Grid item xs={12} md={8}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      color: COLORS.slate,
+                      mb: 1,
+                    }}
+                  >
+                    Reward Amount (USDC)
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    value={editMinReward}
+                    onChange={(e) => setEditMinReward(e.target.value)}
+                    size="small"
+                    type="number"
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Button
+                    fullWidth
+                    onClick={handleSetMinReward}
+                    disabled={savingReward}
+                    sx={{
+                      bgcolor: COLORS.navy,
+                      color: COLORS.white,
+                      py: 1,
+                      textTransform: "none",
+                      fontSize: "0.9375rem",
+                      fontWeight: 600,
+                      "&:hover": { bgcolor: "#0a1628" },
+                      "&:disabled": { bgcolor: "#E5E7EB", color: "#9CA3AF" },
+                    }}
+                  >
+                    {savingReward
+                      ? "Updating..."
+                      : onChainMinReward && parseFloat(onChainMinReward) > 0
+                        ? "Change Reward"
+                        : "Set Reward"}
+                  </Button>
+                </Grid>
+              </Grid>
+            </Paper>
+          </Grid>
+
+          {/* Stake */}
+          <Grid item xs={12}>
+            <Paper sx={{ p: 4 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mb: 3,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "1.125rem",
+                    fontWeight: 600,
+                    color: COLORS.navy,
+                  }}
+                >
+                  Stake
+                </Typography>
+                {loadingOnChain ? (
+                  <CircularProgress size={16} sx={{ color: COLORS.slate }} />
+                ) : (
+                  <Typography
+                    sx={{
+                      fontSize: "0.875rem",
+                      color: COLORS.slate,
+                    }}
+                  >
+                    Current:{" "}
+                    <strong>
+                      {onChainStake !== null ? `${onChainStake} USDC` : "—"}
+                    </strong>
+                  </Typography>
+                )}
+              </Box>
+
+              <Typography
+                sx={{
+                  fontSize: "0.8125rem",
+                  color: COLORS.slate,
+                  mb: 3,
+                  lineHeight: 1.6,
+                }}
+              >
+                Stake USDC to make your worker eligible for task assignments. A
+                minimum stake of 100 USDC is required. Higher stakes increase
+                your worker&apos;s priority when competing for tasks. Staked
+                tokens can be slashed if the worker fails to complete assigned
+                tasks.
+              </Typography>
+
+              <Grid container spacing={3} alignItems="flex-end">
+                <Grid item xs={12} md={8}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      color: COLORS.slate,
+                      mb: 1,
+                    }}
+                  >
+                    Stake Amount (USDC)
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    value={editStake}
+                    onChange={(e) => setEditStake(e.target.value)}
+                    size="small"
+                    type="number"
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Button
+                    fullWidth
+                    onClick={handleStake}
+                    disabled={savingStake}
+                    sx={{
+                      bgcolor: COLORS.navy,
+                      color: COLORS.white,
+                      py: 1,
+                      textTransform: "none",
+                      fontSize: "0.9375rem",
+                      fontWeight: 600,
+                      "&:hover": { bgcolor: "#0a1628" },
+                      "&:disabled": { bgcolor: "#E5E7EB", color: "#9CA3AF" },
+                    }}
+                  >
+                    {savingStake
+                      ? "Staking..."
+                      : onChainStake && parseFloat(onChainStake) > 0
+                        ? "Add Stake"
+                        : "Stake"}
+                  </Button>
+                </Grid>
+              </Grid>
+            </Paper>
+          </Grid>
+
           {/* Container Instructions */}
           <Grid item xs={12}>
             <Paper sx={{ p: 4, bgcolor: "#F8F9FA" }}>
@@ -514,10 +883,35 @@ export default function WorkerConfigurationTab({
               </Box>
 
               <Typography
-                sx={{ fontSize: "0.875rem", color: COLORS.slate, mb: 2 }}
+                sx={{
+                  fontSize: "0.8125rem",
+                  color: COLORS.slate,
+                  mb: 2,
+                  lineHeight: 1.6,
+                }}
               >
-                Run the following command to start your worker node:
+                To run the worker you need to download the Docker image and
+                specify the following parameters:
               </Typography>
+
+              <Box sx={{ mb: 2, pl: 2 }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.8125rem",
+                    color: COLORS.slate,
+                    lineHeight: 1.8,
+                  }}
+                >
+                  <strong>HTTP_RPC_URL</strong> — the URL of an HTTP RPC
+                  provider (e.g. Alchemy, Infura)
+                  <br />
+                  <strong>WS_RPC_URL</strong> — the URL of a WebSocket RPC
+                  provider
+                  <br />
+                  <strong>PRIVATE_KEY</strong> — the private key of the current
+                  worker address. Keep this secret and never share it.
+                </Typography>
+              </Box>
 
               <Box
                 sx={{
@@ -537,61 +931,6 @@ export default function WorkerConfigurationTab({
                 >
                   {dockerCommand}
                 </Typography>
-              </Box>
-            </Paper>
-          </Grid>
-
-          {/* Worker Status */}
-          <Grid item xs={12}>
-            <Paper sx={{ p: 4 }}>
-              <Typography
-                sx={{
-                  fontSize: "1.125rem",
-                  fontWeight: 600,
-                  color: COLORS.navy,
-                  mb: 3,
-                }}
-              >
-                Worker Status
-              </Typography>
-
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  p: 3,
-                  bgcolor: `${status.color}15`,
-                  borderRadius: 1,
-                  border: `2px solid ${status.color}`,
-                }}
-              >
-                <Typography sx={{ fontSize: "2rem" }}>
-                  {status.emoji}
-                </Typography>
-                <Box>
-                  <Typography
-                    sx={{
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: COLORS.slate,
-                      mb: 0.5,
-                    }}
-                  >
-                    Current Status
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontSize: "1.125rem",
-                      fontWeight: 700,
-                      color: status.color,
-                    }}
-                  >
-                    {status.label}
-                  </Typography>
-                </Box>
               </Box>
             </Paper>
           </Grid>
