@@ -701,7 +701,7 @@ export default function ConsumerDashboard({
                         <Typography
                           sx={{ color: COLORS.slate, fontSize: "0.8125rem" }}
                         >
-                          Expand a thread to download or track progress
+                          Expand a thread to track progress
                         </Typography>
                       </Box>
                       {/* Threads table */}
