@@ -33,6 +33,7 @@ import SimpleBackdrop from './SimpleBackdrop';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, db } from '../config/firebase.js';
 import {useFirebaseAuth} from "../hooks/useFirebaseAuth"
+import { useAllWorkers } from "../hooks/useAllWorkers"
 
 interface TaskSubmissionWizardProps {
   open: boolean;
@@ -53,12 +54,6 @@ interface FormData {
 }
 
 const steps = ['Upload & Frames', 'Rendering Specs', 'Workers & Payment'];
-
-const workerStats = [
-  { count: 7, rating: 5, renderTime: 63 },
-  { count: 10, rating: 4.3, renderTime: 120 },
-  { count: 6, rating: 5, renderTime: 300 },
-];
 
 const pricingOptions = [
   { id: 'cheap', name: 'Cheap', price: 13, hours: 49, color: COLORS.green },
@@ -87,6 +82,9 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   const { address, isConnected, } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider('eip155')
   const {user} = useFirebaseAuth()
+  const { runningCount, runningWorkers, offlineWorkers, totalCount, loading: loadingWorkers } = useAllWorkers()
+
+  const threadCount = Math.max(1, Math.min(10, runningCount));
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -179,8 +177,7 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
   
       setBackdrop({show: true, message: `Sign video rendering task submittion in your wallet...`})
       const VideoRenderingContract = new Contract(import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS, VideoRenderingABI.abi, signer);
-      // hardcoding to only 2 threads for now
-      const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), 2, 50000000);
+      const task = await VideoRenderingContract.createTask(downloadUrl, "0x3100000000000000000000000000000000000000000000000000000000000000", parseInt(formData.frameFrom), parseInt(formData.frameTo), threadCount, 50000000);
       setBackdrop({show: true, message: `Task submitted, waiting confirmation...`})
       const tx = await task.wait()
       // Parse logs for TaskCreated
@@ -418,44 +415,50 @@ export default function TaskSubmissionWizard({ open, onClose }: TaskSubmissionWi
 
           {activeStep === 2 && (
             <Box>
-              <Alert severity="success" sx={{ mb: 1 }}>
+              <Alert severity={runningCount > 0 ? "success" : "warning"} sx={{ mb: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Cpu size={20} />
                   <Typography>
-                    We found <strong>23 workers</strong> with your configuration
-                    (15 active, 8 inactive)
+                    {loadingWorkers
+                      ? "Searching for available workers..."
+                      : <>We found <strong>{totalCount} workers</strong> ({runningCount} running, {offlineWorkers.length} offline)</>
+                    }
                   </Typography>
                 </Box>
               </Alert>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'text.secondary',
-                  fontSize: '0.8125rem',
-                  mb: 3,
-                  ml: 1,
-                  fontStyle: 'italic'
-                }}
-              >
-                Don't worry, we will notify the inactive workers!
-              </Typography>
+              {offlineWorkers.length > 0 && (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'text.secondary',
+                    fontSize: '0.8125rem',
+                    mb: 3,
+                    ml: 1,
+                    fontStyle: 'italic'
+                  }}
+                >
+                  Don't worry, we will notify the inactive workers!
+                </Typography>
+              )}
 
               <Paper sx={{ p: 3, mb: 3, bgcolor: 'rgba(15, 23, 42, 0.02)' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                  Worker Statistics:
+                  Network Status
                 </Typography>
-                {workerStats.map((stat, idx) => (
-                  <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                    <Chip
-                      label={`${stat.count} workers`}
-                      size="small"
-                      sx={{ minWidth: 90 }}
-                    />
-                    <Typography variant="body2">
-                      ⭐ {stat.rating} stars • {stat.renderTime}s/frame average
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                  <Chip label={`${runningCount} running`} size="small" sx={{ minWidth: 90, bgcolor: COLORS.greenBg, color: COLORS.green }} />
+                  <Typography variant="body2">
+                    Task will be split into <strong>{threadCount} thread{threadCount !== 1 ? 's' : ''}</strong>
+                  </Typography>
+                </Box>
+                {offlineWorkers.length > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                    <Chip label={`${offlineWorkers.length} offline`} size="small" sx={{ minWidth: 90 }} />
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      Not currently reachable
                     </Typography>
                   </Box>
-                ))}
+                )}
               </Paper>
 
               <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>

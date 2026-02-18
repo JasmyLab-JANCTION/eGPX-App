@@ -18,6 +18,7 @@ import { Wallet, Plus, Server, Copy, Check } from "lucide-react";
 import { COLORS } from "../theme/theme";
 import { useWorkers } from "../hooks/useWorkers";
 import RegisterWorkerDialog from "./RegisterWorkerDialog";
+import WorkerStatusSection from "./WorkerStatusSection";
 import { useAppKitProvider, useDisconnect } from "@reown/appkit/react";
 import {
   BrowserProvider,
@@ -498,6 +499,9 @@ export default function WorkerConfigurationTab({
       {/* Selected Worker Configuration */}
       {selectedWorker ? (
         <Grid container spacing={3}>
+          {/* Worker Status */}
+          <WorkerStatusSection userId={userId} selectedAddress={selectedAddress} />
+
           {/* Configuration Form */}
           <Grid item xs={12}>
             <Paper sx={{ p: 4 }}>
