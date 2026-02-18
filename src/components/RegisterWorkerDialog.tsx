@@ -44,9 +44,7 @@ export default function RegisterWorkerDialog({
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const isDuplicate = address
-    ? existingAddresses.includes(address.toLowerCase())
-    : false;
+  const isDuplicate = address ? existingAddresses.includes(address) : false;
 
   useEffect(() => {
     if (!open) {
@@ -62,8 +60,10 @@ export default function RegisterWorkerDialog({
     setSubmitting(true);
     setError(null);
     try {
-      await onRegister(address.toLowerCase());
-      const ethersProvider = new BrowserProvider(walletProvider as Eip1193Provider);
+      await onRegister(address);
+      const ethersProvider = new BrowserProvider(
+        walletProvider as Eip1193Provider,
+      );
       const signer = await ethersProvider.getSigner();
       const workerRegistry = new Contract(
         WORKER_REGISTRY_ADDRESS,
