@@ -996,7 +996,7 @@ export default function WorkerConfigurationTab({
         open={registerDialogOpen}
         onClose={() => setRegisterDialogOpen(false)}
         onRegister={handleRegister}
-        existingAddresses={workers.map((w: any) => w.address.toLowerCase())}
+        existingAddresses={workers.map((w: any) => w.address)}
       />
 
       {/* Snackbar */}
