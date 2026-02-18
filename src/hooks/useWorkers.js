@@ -19,7 +19,7 @@ export const useWorkers = (userId) => {
     const unsubscribe = db
       .collection("users")
       .doc(userId)
-      .collection("workers")
+      .collection("registeredWorkers")
       .onSnapshot(
         (snapshot) => {
           const docs = snapshot.docs.map((doc) => ({
@@ -33,7 +33,7 @@ export const useWorkers = (userId) => {
           console.error("workers snapshot error", err);
           setError(err.message || String(err));
           setLoading(false);
-        }
+        },
       );
 
     return () => {
@@ -48,7 +48,7 @@ export const useWorkers = (userId) => {
     await db
       .collection("users")
       .doc(userId)
-      .collection("workers")
+      .collection("registeredWorkers")
       .doc(address)
       .set({
         address,
@@ -63,14 +63,14 @@ export const useWorkers = (userId) => {
     await db
       .collection("users")
       .doc(userId)
-      .collection("workers")
+      .collection("registeredWorkers")
       .doc(address)
       .set(
         {
           ...partialData,
           updatedAt: new Date(),
         },
-        { merge: true }
+        { merge: true },
       );
   };
 
@@ -79,7 +79,7 @@ export const useWorkers = (userId) => {
     await db
       .collection("users")
       .doc(userId)
-      .collection("workers")
+      .collection("registeredWorkers")
       .doc(address)
       .delete();
   };
