@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -34,13 +34,16 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { COLORS } from "../theme/theme";
-import { mockBlockchainStats, mockUserProfile } from "../mockData";
+import { mockUserProfile } from "../mockData";
 import DashboardLayout from "../components/DashboardLayout";
 import TaskSubmissionWizard from "../components/TaskSubmissionWizard";
 import { useVideoRenderingTasks } from "../hooks/useFirestoreData.js";
 import { Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { formatUnits } from "ethers";
+import { BrowserProvider, Contract, formatUnits } from "ethers";
+import { useAppKitProvider } from "@reown/appkit/react";
+import VideoRenderingABI from "../contracts/VideoRenderTasks.json";
+import { useAllWorkers } from "../hooks/useAllWorkers";
 
 interface ConsumerDashboardProps {
   onRoleSwitch: () => void;
@@ -93,6 +96,55 @@ export default function ConsumerDashboard({
   const { videoRenderingTasks, loading, error } = useVideoRenderingTasks(
     user?.uid,
   );
+  const { walletProvider } = useAppKitProvider("eip155");
+  const { runningCount, totalCount, idleWorkers, executingWorkers, offlineWorkers } = useAllWorkers();
+
+  const [globalStats, setGlobalStats] = useState<{
+    totalTasksCreated: string;
+    totalTasksCompleted: string;
+    totalTasksCancelled: string;
+    totalThreadsCreated: string;
+    totalThreadsCompleted: string;
+    totalThreadsCancelled: string;
+    totalFramesRendered: string;
+    totalRewardDistributed: string;
+    totalTaskDuration: string;
+  } | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  const fetchGlobalStats = useCallback(async () => {
+    if (!walletProvider) return;
+    setLoadingStats(true);
+    try {
+      const ethersProvider = new BrowserProvider(walletProvider as any);
+      const contract = new Contract(
+        import.meta.env.VITE_BLOCKCHAIN_VIDEO_RENDERING_TASKS_CONTRACT_ADDRESS,
+        VideoRenderingABI.abi,
+        ethersProvider,
+      );
+      const stats = await contract.globalStats();
+      setGlobalStats({
+        totalTasksCreated: stats.totalTasksCreated.toString(),
+        totalTasksCompleted: stats.totalTasksCompleted.toString(),
+        totalTasksCancelled: stats.totalTasksCancelled.toString(),
+        totalThreadsCreated: stats.totalThreadsCreated.toString(),
+        totalThreadsCompleted: stats.totalThreadsCompleted.toString(),
+        totalThreadsCancelled: stats.totalThreadsCancelled.toString(),
+        totalFramesRendered: stats.totalFramesRendered.toString(),
+        totalRewardDistributed: formatUnits(stats.totalRewardDistributed, 6),
+        totalTaskDuration: stats.totalTaskDuration.toString(),
+      });
+    } catch (err) {
+      console.error("Failed to fetch global stats:", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, [walletProvider]);
+
+  useEffect(() => {
+    fetchGlobalStats();
+  }, [fetchGlobalStats]);
+
   const [expandedTaskId, setExpandedTaskId] = useState<string | false>(false);
   const [selectedThread, setSelectedThread] = useState<{
     task: any;
@@ -915,9 +967,22 @@ export default function ConsumerDashboard({
               Real-time network performance and worker statistics
             </Typography>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={3}>
-                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.gold}` }}>
+            {/* Worker Status */}
+            <Typography
+              sx={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                color: COLORS.slate,
+                mb: 1.5,
+              }}
+            >
+              Workers
+            </Typography>
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid size={{ xs: 6, md: 3 }}>
+                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.navy}` }}>
                   <Typography
                     sx={{
                       fontSize: "0.75rem",
@@ -928,7 +993,7 @@ export default function ConsumerDashboard({
                       mb: 1,
                     }}
                   >
-                    Active Workers
+                    Total Registered
                   </Typography>
                   <Typography
                     sx={{
@@ -938,11 +1003,11 @@ export default function ConsumerDashboard({
                       color: COLORS.navy,
                     }}
                   >
-                    {mockBlockchainStats.activeWorkers.toLocaleString()}
+                    {totalCount}
                   </Typography>
                 </Paper>
               </Grid>
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 6, md: 3 }}>
                 <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.green}` }}>
                   <Typography
                     sx={{
@@ -954,22 +1019,27 @@ export default function ConsumerDashboard({
                       mb: 1,
                     }}
                   >
-                    Tasks Completed
+                    Running
                   </Typography>
                   <Typography
                     sx={{
                       fontFamily: "monospace",
                       fontSize: "2rem",
                       fontWeight: 700,
-                      color: COLORS.navy,
+                      color: COLORS.green,
                     }}
                   >
-                    {mockBlockchainStats.totalTasksCompleted.toLocaleString()}
+                    {runningCount}
+                  </Typography>
+                  <Typography
+                    sx={{ fontSize: "0.75rem", color: COLORS.slate }}
+                  >
+                    {idleWorkers.length} idle, {executingWorkers.length} executing
                   </Typography>
                 </Paper>
               </Grid>
-              <Grid item xs={12} md={3}>
-                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.blue}` }}>
+              <Grid size={{ xs: 6, md: 3 }}>
+                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.slate}` }}>
                   <Typography
                     sx={{
                       fontSize: "0.75rem",
@@ -980,7 +1050,7 @@ export default function ConsumerDashboard({
                       mb: 1,
                     }}
                   >
-                    Frames Rendered
+                    Offline
                   </Typography>
                   <Typography
                     sx={{
@@ -990,37 +1060,257 @@ export default function ConsumerDashboard({
                       color: COLORS.navy,
                     }}
                   >
-                    {(mockBlockchainStats.framesRendered / 1000000).toFixed(1)}M
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.gold}` }}>
-                  <Typography
-                    sx={{
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: COLORS.slate,
-                      mb: 1,
-                    }}
-                  >
-                    Avg Frame Time
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontFamily: "monospace",
-                      fontSize: "2rem",
-                      fontWeight: 700,
-                      color: COLORS.navy,
-                    }}
-                  >
-                    {mockBlockchainStats.avgFrameRenderTime}s
+                    {offlineWorkers.length}
                   </Typography>
                 </Paper>
               </Grid>
             </Grid>
+
+            {/* On-Chain Stats */}
+            <Typography
+              sx={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                color: COLORS.slate,
+                mb: 1.5,
+              }}
+            >
+              On-Chain Statistics
+            </Typography>
+            {loadingStats ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                <CircularProgress sx={{ color: COLORS.navy }} />
+              </Box>
+            ) : !globalStats ? (
+              <Paper sx={{ p: 4, textAlign: "center" }}>
+                <Typography sx={{ color: COLORS.slate }}>
+                  Connect your wallet to view on-chain statistics
+                </Typography>
+              </Paper>
+            ) : (
+              <>
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.blue}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Tasks Created
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        {globalStats.totalTasksCreated}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.green}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Tasks Completed
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        {globalStats.totalTasksCompleted}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.red}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Tasks Cancelled
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        {globalStats.totalTasksCancelled}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.gold}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Frames Rendered
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        {globalStats.totalFramesRendered}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.blue}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Threads Created
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        {globalStats.totalThreadsCreated}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.green}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Threads Completed
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        {globalStats.totalThreadsCompleted}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.red}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Threads Cancelled
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        {globalStats.totalThreadsCancelled}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, borderLeft: `4px solid ${COLORS.gold}` }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: COLORS.slate,
+                          mb: 1,
+                        }}
+                      >
+                        Reward Distributed
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: "monospace",
+                          fontSize: "2rem",
+                          fontWeight: 700,
+                          color: COLORS.navy,
+                        }}
+                      >
+                        ${globalStats.totalRewardDistributed}
+                      </Typography>
+                      <Typography
+                        sx={{ fontSize: "0.75rem", color: COLORS.slate }}
+                      >
+                        USDC
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </>
+            )}
           </Box>
         );
 
