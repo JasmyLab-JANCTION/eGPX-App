@@ -6,6 +6,7 @@ import { mockUserProfile, mockBlockchainStats } from '../mockData';
 import DashboardLayout from '../components/DashboardLayout';
 import WorkerConfigurationTab from '../components/WorkerConfigurationTab';
 import WorkerReputationTab from '../components/WorkerReputationTab';
+import WorkerEarningsTab from '../components/WorkerEarningsTab';
 
 interface WorkerDashboardProps {
   onRoleSwitch: () => void;
@@ -283,66 +284,7 @@ export default function WorkerDashboard({ onRoleSwitch, onLogout, user }: Worker
         return <WorkerReputationTab userId={(user as any).uid} />;
 
       case 'earnings':
-        return (
-          <Box>
-            <Typography sx={{ fontFamily: '"Playfair Display", serif', fontSize: '2rem', fontWeight: 700, color: COLORS.navy, mb: 1 }}>
-              Earnings
-            </Typography>
-            <Typography sx={{ fontSize: '0.9375rem', color: COLORS.slate, mb: 4 }}>
-              Track your earnings and token balance
-            </Typography>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 4 }}>
-                  <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: COLORS.navy, mb: 3 }}>
-                    Token Balance
-                  </Typography>
-                  <Box sx={{ mb: 3 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
-                      Staked JCT
-                    </Typography>
-                    <Typography sx={{ fontFamily: 'monospace', fontSize: '1.5rem', fontWeight: 700, color: COLORS.navy }}>
-                      {stats.jctStaked} JCT
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
-                      Available JCT
-                    </Typography>
-                    <Typography sx={{ fontFamily: 'monospace', fontSize: '1.5rem', fontWeight: 700, color: COLORS.navy }}>
-                      {stats.jctAvailable} JCT
-                    </Typography>
-                  </Box>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 4 }}>
-                  <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: COLORS.navy, mb: 3 }}>
-                    Earnings Summary
-                  </Typography>
-                  <Box sx={{ mb: 3 }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
-                      Total Earned
-                    </Typography>
-                    <Typography sx={{ fontFamily: 'monospace', fontSize: '1.5rem', fontWeight: 700, color: COLORS.navy }}>
-                      ${stats.earnings.toLocaleString()}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: COLORS.slate, mb: 1 }}>
-                      Tasks Completed
-                    </Typography>
-                    <Typography sx={{ fontFamily: 'monospace', fontSize: '1.5rem', fontWeight: 700, color: COLORS.navy }}>
-                      {stats.completedTasks}
-                    </Typography>
-                  </Box>
-                </Paper>
-              </Grid>
-            </Grid>
-          </Box>
-        );
+        return <WorkerEarningsTab userId={(user as any).uid} />;
 
       case 'settings':
         return (
