@@ -21,6 +21,8 @@
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-adapter-ethers": "^1.8.17",
     "@reown/appkit-utils": "^1.8.17",
+    "@stripe/react-stripe-js": "^5.6.0",
+    "@stripe/stripe-js": "^8.8.0",
     "@supabase/supabase-js": "^2.57.4",
     "ethers": "^6.16.0",
     "firebase": "^12.8.0",

@@ -898,7 +898,10 @@ export default function TaskSubmissionWizard({
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={!isConnected}
+            disabled={
+              (paymentMethod === "crypto" && !isConnected) ||
+              paymentMethod === ""
+            }
             sx={{
               bgcolor: COLORS.gold,
               color: COLORS.navy,
