@@ -28,6 +28,7 @@ const stripePromise = loadStripe(
 type CreditCardPaymentProps = {
   open: boolean;
   onClose: () => void;
+  onPaymentMethodSaved: (paymentMethodId: string) => void;
 };
 
 const cardElementStyle = {
@@ -60,7 +61,13 @@ const fieldContainerSx = {
   },
 };
 
-function CheckoutForm({ onClose }: { onClose: () => void }) {
+function CheckoutForm({
+  onClose,
+  onPaymentMethodSaved,
+}: {
+  onClose: () => void;
+  onPaymentMethodSaved: (paymentMethodId: string) => void;
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);
@@ -73,21 +80,28 @@ function CheckoutForm({ onClose }: { onClose: () => void }) {
     setProcessing(true);
     setError(null);
 
-    // TODO: Call your backend to create a PaymentIntent and get the clientSecret
-    // const { clientSecret } = await fetch('/api/create-payment-intent', { ... }).then(r => r.json());
-
-    // TODO: Confirm the payment with Stripe
-    // const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-    //   payment_method: {
-    //     card: elements.getElement(CardNumberElement)!,
-    //   },
-    // });
-
-    // Placeholder: simulate success for now
-    setTimeout(() => {
+    const cardElement = elements.getElement(CardNumberElement);
+    if (!cardElement) {
+      setError("Card element not found");
       setProcessing(false);
-      setSucceeded(true);
-    }, 1500);
+      return;
+    }
+
+    const { error: stripeError, paymentMethod } =
+      await stripe.createPaymentMethod({
+        type: "card",
+        card: cardElement,
+      });
+
+    if (stripeError) {
+      setError(stripeError.message || "An error occurred");
+      setProcessing(false);
+      return;
+    }
+
+    onPaymentMethodSaved(paymentMethod.id);
+    setProcessing(false);
+    setSucceeded(true);
   };
 
   if (succeeded) {
@@ -214,7 +228,11 @@ function CheckoutForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-export const CreditCardPayment = ({ open, onClose }: CreditCardPaymentProps) => {
+export const CreditCardPayment = ({
+  open,
+  onClose,
+  onPaymentMethodSaved,
+}: CreditCardPaymentProps) => {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
@@ -234,12 +252,14 @@ export const CreditCardPayment = ({ open, onClose }: CreditCardPaymentProps) => 
       <DialogContent>
         <Box sx={{ mt: 1 }}>
           <Alert severity="info" sx={{ mb: 3 }}>
-            Your payment will be processed via Stripe. We will use account
-            abstraction to convert your payment to USDC and submit it
-            on-chain.
+            Your payment will be processed securely via Stripe. Enter your
+            card details below to save your payment method.
           </Alert>
           <Elements stripe={stripePromise}>
-            <CheckoutForm onClose={onClose} />
+            <CheckoutForm
+              onClose={onClose}
+              onPaymentMethodSaved={onPaymentMethodSaved}
+            />
           </Elements>
         </Box>
       </DialogContent>

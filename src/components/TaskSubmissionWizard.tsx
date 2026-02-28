@@ -39,6 +39,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, db } from "../config/firebase.js";
 import { useFirebaseAuth } from "../hooks/useFirebaseAuth";
 import { useAllWorkers } from "../hooks/useAllWorkers";
+import { apiPaymentsCreateIntent } from "../utils/api.js";
 
 interface TaskSubmissionWizardProps {
   open: boolean;
@@ -89,6 +90,8 @@ export default function TaskSubmissionWizard({
     "crypto" | "creditcard" | ""
   >("");
   const [showCreditCardModal, setShowCreditCardModal] = useState(false);
+  const [creditCardPaymentMethodId, setCreditCardPaymentMethodId] =
+    useState("");
   //WEb3 stuff
   const { open: openWallet } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
@@ -102,7 +105,7 @@ export default function TaskSubmissionWizard({
     loading: loadingWorkers,
   } = useAllWorkers();
 
-  const threadCount = Math.max(1, Math.min(10, runningCount));
+  const threadCount = Math.max(1, Math.min(20, runningCount));
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -131,6 +134,8 @@ export default function TaskSubmissionWizard({
   const handleClose = () => {
     setFormData(initialState);
     setActiveStep(0);
+    setPaymentMethod("");
+    setCreditCardPaymentMethodId("");
     onClose();
   };
 
@@ -165,7 +170,12 @@ export default function TaskSubmissionWizard({
     });
   };
 
-  const handleSubmit = async () => {
+  const getSelectedPlanPrice = () => {
+    const plan = pricingOptions.find((p) => p.id === formData.selectedPlan);
+    return plan ? plan.price : 50;
+  };
+
+  const handleCryptoSubmit = async () => {
     setBackdrop({
       show: true,
       message: `Uploading animation ${formData.fileName}...`,
@@ -277,6 +287,7 @@ export default function TaskSubmissionWizard({
           reward: 50000000,
           rewardCurrency: "USDC",
           rewardFormatted: formatUnits(50000000n, 6),
+          paymentMethod: "crypto",
           createdAt: new Date(),
         });
       handleClose();
@@ -284,6 +295,72 @@ export default function TaskSubmissionWizard({
       console.log(error);
     } finally {
       setBackdrop({ show: false, message: "" });
+    }
+  };
+
+  const handleCreditCardSubmit = async () => {
+    setBackdrop({
+      show: true,
+      message: `Uploading animation ${formData.fileName}...`,
+    });
+
+    const downloadUrl = await uploadFileToFirebase();
+    setFormData({ ...formData, fileUrl: downloadUrl });
+
+    setBackdrop({
+      show: true,
+      message: `Processing credit card payment...`,
+    });
+
+    try {
+      const priceInCents = getSelectedPlanPrice() * 100;
+
+      const result = await apiPaymentsCreateIntent(
+        creditCardPaymentMethodId,
+        priceInCents,
+        user.uid,
+      );
+
+      if (!result.ok) {
+        throw new Error(result.data || "Payment failed");
+      }
+
+      setBackdrop({ show: true, message: `Saving task...` });
+      const taskDocRef = db.collection("videoRenderingTasks").doc();
+      await taskDocRef.set({
+        id: taskDocRef.id,
+        taskName: formData.taskName,
+        fileName: formData.fileName,
+        status: "open",
+        creator: user.uid,
+        fileUrl: downloadUrl,
+        frameFrom: parseInt(formData.frameFrom),
+        frameTo: parseInt(formData.frameTo),
+        os: formData.os,
+        profile:
+          "0x3100000000000000000000000000000000000000000000000000000000000000",
+        renderingSoftware: formData.renderingSoftware,
+        selectedPlan: formData.selectedPlan,
+        reward: priceInCents,
+        rewardCurrency: "USD",
+        rewardFormatted: `$${getSelectedPlanPrice()}`,
+        paymentMethod: "creditcard",
+        stripePaymentIntentId: result.data.paymentIntentId,
+        createdAt: new Date(),
+      });
+      handleClose();
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setBackdrop({ show: false, message: "" });
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (paymentMethod === "crypto") {
+      await handleCryptoSubmit();
+    } else if (paymentMethod === "creditcard") {
+      await handleCreditCardSubmit();
     }
   };
 
@@ -851,28 +928,39 @@ export default function TaskSubmissionWizard({
 
               {paymentMethod === "creditcard" && (
                 <Box sx={{ display: "flex", gap: 2, flexDirection: "column" }}>
-                  <Button
-                    variant="outlined"
-                    size="large"
-                    startIcon={<CreditCard />}
-                    onClick={() => setShowCreditCardModal(true)}
-                    sx={{
-                      borderColor: COLORS.blue,
-                      color: COLORS.blue,
-                      "&:hover": {
-                        borderColor: COLORS.blueDark,
-                        bgcolor: COLORS.blueBg,
-                      },
-                    }}
-                  >
-                    Enter Card Details
-                  </Button>
+                  {creditCardPaymentMethodId ? (
+                    <Alert severity="success">
+                      Credit card saved. Payment will be processed on
+                      submission.
+                    </Alert>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      size="large"
+                      startIcon={<CreditCard />}
+                      onClick={() => setShowCreditCardModal(true)}
+                      sx={{
+                        borderColor: COLORS.blue,
+                        color: COLORS.blue,
+                        "&:hover": {
+                          borderColor: COLORS.blueDark,
+                          bgcolor: COLORS.blueBg,
+                        },
+                      }}
+                    >
+                      Enter Card Details
+                    </Button>
+                  )}
                 </Box>
               )}
 
               <CreditCardPayment
                 open={showCreditCardModal}
                 onClose={() => setShowCreditCardModal(false)}
+                onPaymentMethodSaved={(id) => {
+                  setCreditCardPaymentMethodId(id);
+                  setShowCreditCardModal(false);
+                }}
               />
             </Box>
           )}
@@ -899,8 +987,9 @@ export default function TaskSubmissionWizard({
             variant="contained"
             onClick={handleSubmit}
             disabled={
+              paymentMethod === "" ||
               (paymentMethod === "crypto" && !isConnected) ||
-              paymentMethod === ""
+              (paymentMethod === "creditcard" && !creditCardPaymentMethodId)
             }
             sx={{
               bgcolor: COLORS.gold,
