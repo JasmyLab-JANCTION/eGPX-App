@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -40,6 +40,7 @@ import { storage, db } from "../config/firebase.js";
 import { useFirebaseAuth } from "../hooks/useFirebaseAuth";
 import { useAllWorkers } from "../hooks/useAllWorkers";
 import { apiPaymentsCreateIntent } from "../utils/api.js";
+import { usePaymentStatus } from "../hooks/usePaymentStatus";
 
 interface TaskSubmissionWizardProps {
   open: boolean;
@@ -92,6 +93,13 @@ export default function TaskSubmissionWizard({
   const [showCreditCardModal, setShowCreditCardModal] = useState(false);
   const [creditCardPaymentMethodId, setCreditCardPaymentMethodId] =
     useState("");
+  const [activePaymentIntentId, setActivePaymentIntentId] = useState<
+    string | null
+  >(null);
+  const pendingTaskDataRef = useRef<{
+    downloadUrl: string;
+    priceInCents: number;
+  } | null>(null);
   //WEb3 stuff
   const { open: openWallet } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
@@ -105,6 +113,11 @@ export default function TaskSubmissionWizard({
     loading: loadingWorkers,
   } = useAllWorkers();
 
+  const { status: paymentStatus, reset: resetPaymentStatus } = usePaymentStatus(
+    user?.uid ?? null,
+    activePaymentIntentId,
+  );
+
   const threadCount = Math.max(1, Math.min(20, runningCount));
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,6 +130,23 @@ export default function TaskSubmissionWizard({
   useEffect(() => {
     setFormData({ ...formData, walletConnected: isConnected });
   }, [isConnected]);
+
+  // React to payment status changes from the Firestore snapshot
+  useEffect(() => {
+    if (!activePaymentIntentId || !paymentStatus) return;
+
+    if (paymentStatus === "succeeded") {
+      setBackdrop({
+        show: true,
+        message: `Submitting transaction on blockchain...`,
+      });
+    } else if (paymentStatus === "failed") {
+      console.error("Payment failed for intent:", activePaymentIntentId);
+      setBackdrop({ show: false, message: "" });
+      pendingTaskDataRef.current = null;
+      setActivePaymentIntentId(null);
+    }
+  }, [paymentStatus, activePaymentIntentId]);
 
   const handleNext = () => {
     setActiveStep((prev) => prev + 1);
@@ -136,6 +166,10 @@ export default function TaskSubmissionWizard({
     setActiveStep(0);
     setPaymentMethod("");
     setCreditCardPaymentMethodId("");
+    setActivePaymentIntentId(null);
+    pendingTaskDataRef.current = null;
+    resetPaymentStatus();
+    setBackdrop({ show: false, message: "" });
     onClose();
   };
 
@@ -304,8 +338,15 @@ export default function TaskSubmissionWizard({
       message: `Uploading animation ${formData.fileName}...`,
     });
 
-    const downloadUrl = await uploadFileToFirebase();
-    setFormData({ ...formData, fileUrl: downloadUrl });
+    let downloadUrl: string;
+    try {
+      downloadUrl = await uploadFileToFirebase();
+      setFormData({ ...formData, fileUrl: downloadUrl });
+    } catch (error) {
+      console.error("File upload failed:", error);
+      setBackdrop({ show: false, message: "" });
+      return;
+    }
 
     setBackdrop({
       show: true,
@@ -325,33 +366,18 @@ export default function TaskSubmissionWizard({
         throw new Error(result.data || "Payment failed");
       }
 
-      setBackdrop({ show: true, message: `Saving task...` });
-      const taskDocRef = db.collection("videoRenderingTasks").doc();
-      await taskDocRef.set({
-        id: taskDocRef.id,
-        taskName: formData.taskName,
-        fileName: formData.fileName,
-        status: "open",
-        creator: user.uid,
-        fileUrl: downloadUrl,
-        frameFrom: parseInt(formData.frameFrom),
-        frameTo: parseInt(formData.frameTo),
-        os: formData.os,
-        profile:
-          "0x3100000000000000000000000000000000000000000000000000000000000000",
-        renderingSoftware: formData.renderingSoftware,
-        selectedPlan: formData.selectedPlan,
-        reward: priceInCents,
-        rewardCurrency: "USD",
-        rewardFormatted: `$${getSelectedPlanPrice()}`,
-        paymentMethod: "creditcard",
-        stripePaymentIntentId: result.data.paymentIntentId,
-        createdAt: new Date(),
+      // Store data for the status useEffect to use when saving the task
+      pendingTaskDataRef.current = { downloadUrl, priceInCents };
+
+      setBackdrop({
+        show: true,
+        message: `Waiting for payment confirmation...`,
       });
-      handleClose();
+
+      // Activate the real-time subscription
+      setActivePaymentIntentId(result.data.paymentIntentId);
     } catch (error) {
-      console.log(error);
-    } finally {
+      console.error("Payment intent creation failed:", error);
       setBackdrop({ show: false, message: "" });
     }
   };
