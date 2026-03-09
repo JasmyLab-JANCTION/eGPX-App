@@ -39,7 +39,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { storage, db } from "../config/firebase.js";
 import { useFirebaseAuth } from "../hooks/useFirebaseAuth";
 import { useAllWorkers } from "../hooks/useAllWorkers";
-import { apiPaymentsCreateIntent } from "../utils/api.js";
+import { apiPaymentsCreateIntent, apiPaymentsCreateTask } from "../utils/api.js";
 import { usePaymentStatus } from "../hooks/usePaymentStatus";
 
 interface TaskSubmissionWizardProps {
@@ -99,6 +99,7 @@ export default function TaskSubmissionWizard({
   const pendingTaskDataRef = useRef<{
     downloadUrl: string;
     priceInCents: number;
+    threadCount: number;
   } | null>(null);
   //WEb3 stuff
   const { open: openWallet } = useAppKit();
@@ -140,6 +141,35 @@ export default function TaskSubmissionWizard({
         show: true,
         message: `Submitting transaction on blockchain...`,
       });
+
+      const taskData = pendingTaskDataRef.current;
+      if (!taskData) return;
+
+      apiPaymentsCreateTask({
+        paymentId: activePaymentIntentId,
+        uid: user.uid,
+        downloadUrl: taskData.downloadUrl,
+        frameFrom: formData.frameFrom,
+        frameTo: formData.frameTo,
+        threadCount: taskData.threadCount,
+        taskName: formData.taskName,
+        fileName: formData.fileName,
+        os: formData.os,
+        renderingSoftware: formData.renderingSoftware,
+        selectedPlan: formData.selectedPlan,
+      })
+        .then((result) => {
+          if (result.ok) {
+            handleClose();
+          } else {
+            console.error("Task creation failed:", result.data);
+            setBackdrop({ show: false, message: "" });
+          }
+        })
+        .catch((error) => {
+          console.error("Task creation error:", error);
+          setBackdrop({ show: false, message: "" });
+        });
     } else if (paymentStatus === "failed") {
       console.error("Payment failed for intent:", activePaymentIntentId);
       setBackdrop({ show: false, message: "" });
@@ -367,7 +397,7 @@ export default function TaskSubmissionWizard({
       }
 
       // Store data for the status useEffect to use when saving the task
-      pendingTaskDataRef.current = { downloadUrl, priceInCents };
+      pendingTaskDataRef.current = { downloadUrl, priceInCents, threadCount };
 
       setBackdrop({
         show: true,

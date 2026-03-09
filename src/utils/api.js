@@ -15,3 +15,17 @@ export const apiPaymentsCreateIntent = async (paymentMethodId, amount, uid) => {
   });
   return response.json();
 };
+
+export const apiPaymentsCreateTask = async (taskData) => {
+  const url = apiURL.concat("payments/create-task");
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiToken,
+    },
+    body: JSON.stringify(taskData),
+  });
+  return response.json();
+};
